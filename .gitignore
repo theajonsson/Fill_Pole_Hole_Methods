@@ -1,0 +1,23 @@
+._*
+Data/
+# Ignore Average_SIT
+Average_SIT/__pycache__
+Average_SIT/._*
+Average_SIT/*.bin
+Average_SIT/*.nc
+Average_SIT/*.txt
+Average_SIT/SatelliteOrbit.py
+# Ignore Average_Ice_Type
+Average_Ice_Type/__pycache__
+Average_Ice_Type/._*
+Average_Ice_Type/*.bin
+Average_Ice_Type/*.nc
+Average_Ice_Type/*.txt
+# Ignore Neural_Network
+Neural_Network/__pycache__
+Neural_Network/._*
+Neural_Network/*.nc
+Neural_Network/*.bin
+Neural_Network/*.txt
+Neural_Network/main.py
+Neural_Network/Read_NC_File.py
