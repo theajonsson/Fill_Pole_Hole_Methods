@@ -1,0 +1,29 @@
+._*
+Data/
+# Ignore Halo
+Halo/__pycache__
+Halo/._*
+Halo/*.bin
+Halo/*.nc
+Halo/*.txt
+Halo/SatelliteOrbit.py
+Halo/predSIV_VS_cs2SIV.py
+Halo/Results/*
+# Ignore Ice_Age
+Ice_Age/__pycache__
+Ice_Age/._*
+Ice_Age/*.bin
+Ice_Age/*.nc
+Ice_Age/*.txt
+Ice_Age/Results/*
+# Ignore Neural_Network
+Neural_Network/__pycache__
+Neural_Network/._*
+Neural_Network/*.nc
+Neural_Network/*.bin
+Neural_Network/*.txt
+Neural_Network/main.py
+Neural_Network/Read_NC_File.py
+Neural_Network/Results/*
+# Ignore Estimating_SIV
+Estimating_SIV/Results/*
