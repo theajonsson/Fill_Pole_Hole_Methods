@@ -57,7 +57,7 @@ Purpose:    Create synthetic satellite tracks in the pole hole (from lat_level t
 Input:      NaN
 Return:     x, y (float)
 """ 
-def synthetic_tracks(lat_level=81.5, max_lat_level = 88, distance=50, hemisphere="n"):
+def synthetic_tracks(lat_level=81.5, max_lat_level=88, distance=50, hemisphere="n"):
     d = nc.Dataset(Path(__file__).resolve().parent/"NSIDC0772_LatLon_EASE2_N3.125km_v1.1.nc", "r", format="NETCDF4")
     lats = np.array(d["latitude"])
     lons = np.array(d["longitude"])
@@ -334,10 +334,9 @@ if False:
     plt.figure()
     plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
     plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
+    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
     plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
     plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
-    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
-
     plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
 
     plt.xlabel("CS2 volume [km$^3$]")
@@ -345,8 +344,8 @@ if False:
     plt.xlim(0, 10000)
     plt.ylim(0, 10000)
     plt.grid(True)
-    plt.legend(loc="lower right")
+    plt.legend(loc="upper left", ncol=2)
     plt.tight_layout()
     dir = str(Path(__file__).resolve().parent/"Results/")
-    plt.savefig(os.path.join(dir,"AveragingSIT_Method.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(os.path.join(dir,"Halo_Method.png"), dpi=300, bbox_inches="tight")
     plt.show()

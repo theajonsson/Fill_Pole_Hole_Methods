@@ -6,8 +6,6 @@ Halo/._*
 Halo/*.bin
 Halo/*.nc
 Halo/*.txt
-Halo/SatelliteOrbit.py
-Halo/predSIV_VS_cs2SIV.py
 Halo/Results/*
 # Ignore Ice_Age
 Ice_Age/__pycache__
@@ -26,4 +24,5 @@ Neural_Network/main.py
 Neural_Network/Read_NC_File.py
 Neural_Network/Results/*
 # Ignore Estimating_SIV
+Estimating_SIV/SatelliteOrbit.py
 Estimating_SIV/Results/*

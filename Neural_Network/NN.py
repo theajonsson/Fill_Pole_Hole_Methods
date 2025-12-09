@@ -20,11 +20,14 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+import matplotlib as mpl
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import mean_squared_error
 from scipy.stats import linregress
 
+mpl.rcParams['agg.path.chunksize'] = 10000
 
 
 # NN model using MLP architecture
@@ -34,15 +37,27 @@ class Model(nn.Module):
     def __init__(self, in_features=5, n_hidden=4, n_outputs=1):
         print(f"From NN.py n_hidden = {n_hidden}")
         super(Model, self).__init__()
-        self.hidden = nn.Linear(in_features, n_hidden)
+        self.hidden1 = nn.Linear(in_features, n_hidden)
+        self.hidden2 = nn.Linear(n_hidden, n_hidden)
+        #self.hidden3 = nn.Linear(n_hidden, n_hidden)
+        #self.hidden4 = nn.Linear(n_hidden, n_hidden)
+        #self.hidden5 = nn.Linear(n_hidden, n_hidden)
         self.activation = nn.Tanh()                      
         self.output = nn.Linear(n_hidden, n_outputs)    
 
     def forward(self, x):
-        x = self.hidden(x)
+        x = self.hidden1(x)
         x = self.activation(x)
+        x = self.hidden2(x)
+        x = self.activation(x)
+        #x = self.hidden3(x)
+        #x = self.activation(x)
+        #x = self.hidden4(x)
+        #x = self.activation(x)
+        #x = self.hidden5(x)
+        #x = self.activation(x)
         x = self.output(x)          
-        return x
+        return x         
 
 
 
@@ -128,7 +143,8 @@ def train_model(data,
         "model_state_dict": model.state_dict(),
         "scaler": scaler
     }
-    #torch.save(model_save, str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth"))
+    #torch.save(model_save, str(Path(__file__).resolve().parent/"Results/NN/NN_Model.pth"))
+    #torch.save(model_save, "/Users/theajonsson/Desktop/NN_Model.pth")
 
     if return_model:
         return model_save
@@ -178,10 +194,13 @@ def train_model(data,
                 ax.legend()
                 ax.grid(True)
 
-            #plt.savefig("/Users/theajonsson/Desktop/TBvspredSIT_.png", dpi=300, bbox_inches="tight")
+            dir = "/Users/theajonsson/Desktop/"
+            name = f"TB_predSIT_{group}.png"
+            plt.savefig(dir+name, dpi=300, bbox_inches="tight")
             plt.show()
 
     # 3 plots (divided in channels: 19,22,37): predicted test SIT (y-axis) vs true test SIT (x-axis), with fitted line, R^2 score, RMSE value
+    # Important
     if False:
         channel_groups = [
             ["TB_V19", "TB_H19"],   
@@ -227,12 +246,14 @@ def train_model(data,
                 ax.set_xlim(0, 5)
         
             plt.tight_layout()
-            #plt.savefig("/Users/theajonsson/Desktop/SSMIS_tested_allcolsame.png", dpi=300, bbox_inches="tight")
-            plt.show()
+            dir = "/Users/theajonsson/Desktop/"
+            name = f"TrueSIT_predSIT_{group}.png"
+            plt.savefig(dir+name, dpi=300, bbox_inches="tight")
+            plt.close()
 
     # Plot (scatter or hexbin) of predicted SIT (y-axis) against true SIT (x-axis), with fitted and optimal line, R^2 score, RMSE value
     # Plot histogram of predicted SIT and true SIT
-    if False:
+    if True:
         with torch.no_grad():
             y_pred_test = model(X_test)
 
@@ -245,6 +266,8 @@ def train_model(data,
 
         # RMSE calculation
         rmse = mean_squared_error(y_test_np, y_pred_np, squared=False)
+
+        bias = np.mean(y_pred_np - y_test_np)
         
         # Scatter plot
         if False:
@@ -262,25 +285,28 @@ def train_model(data,
         # Hexbin plot
         if True:
             plt.hexbin(y_test_np, y_pred_np, gridsize = 50, mincnt=6)
-            plt.plot(y_test_np, intercept + slope * y_test_np, color="red", label=f"Fitted line (R-squared: {r_squared:.3f}, RMSE={rmse:.3f})")
-            plt.plot([0,5],[0,5], color="m", linestyle="--", label="Optimal line")
+            line_fit, = plt.plot(y_test_np, intercept + slope * y_test_np, color="red", label=f"Fitted line")
+            line_opt, = plt.plot([0,6],[0,6], color="black", linestyle="--", label="Optimal line")
+            stats_text = f"R$^2$={r_squared:.3f}, RMSE={rmse:.3f}, Bias={bias:.3f}, Slope={slope:.3f}"
+            custom_entry = Line2D([], [], linestyle='none', marker=None, label=stats_text)
+            
+            plt.legend(handles=[custom_entry, line_fit, line_opt], loc="lower center", bbox_to_anchor=(0.5, -0.35))
             plt.xlabel("True SIT [m]")
             plt.ylabel("Predicted SIT [m]")
-            plt.legend()
             plt.grid(True)
-            plt.ylim(0, 5)
-            plt.xlim(0, 5)
-            #plt.savefig("/Users/theajonsson/Desktop/SSMIS_200603.png", dpi=300, bbox_inches="tight")
+            plt.ylim(0, 6)
+            plt.xlim(0, 6)
+            plt.savefig("/Users/theajonsson/Desktop/PredSIT_TrueSIT_hexbin.png", dpi=300, bbox_inches="tight")
             plt.show()
 
         if True: 
             plt.hist(y_test_np, bins=100, color="blue", alpha=0.5 ,edgecolor="black", zorder=3, label="True SIT", range=(y_test_np.min(), y_test_np.max()))
             plt.hist(y_pred_np, bins=100, color="red", edgecolor="black", zorder=1, label="Predicted SIT", range=(y_test_np.min(), y_test_np.max()))
-            plt.xlabel("Sea Ice Thickness [m]")
-            plt.ylabel("Amount")
+            plt.xlabel("Sea ice thickness [m]")
+            plt.ylabel("Frequency")
             plt.legend()
             plt.xlim(0,10)
-            #plt.savefig("/Users/theajonsson/Desktop/SSMIS_200603_hist.png", dpi=300, bbox_inches="tight")
+            plt.savefig("/Users/theajonsson/Desktop/PredSIT_TrueSIT__hist.png", dpi=300, bbox_inches="tight")
             plt.show()
 
 
@@ -298,7 +324,8 @@ Return:     model: contains model and scaler
 """
 def NN_automated(n):
     try:
-        data=pd.read_csv("/Users/theajonsson/Desktop/6-10oct/Heatmap/TD_SSMIS_1month_200603_maskland.csv")
+        data=pd.read_csv("/Users/theajonsson/Desktop/2006_2007_50km/TD/TD_2006_2007.csv")
+        #data = pd.read_csv("/Users/theajonsson/Desktop/2006_2007_80km/TD/TD_2006_2007.csv")
     except FileNotFoundError:
         print("Error")
     model = train_model(data, epochs=1000, lr=0.01, n_hidden=n, return_model=True)
@@ -308,16 +335,18 @@ def NN_automated(n):
 
 # -------------------- MAIN --------------------       
 # Train NN on training dataset
-start_time = time.time()
+if True:
+    start_time = time.time()
 
-try:
-    data = pd.read_csv(str(Path(__file__).resolve().parent.parent/"Data/NN/TD_SSMIS.csv"))
-except FileNotFoundError:
-    print("Error when ")
-train_model(data, epochs=1000, lr=0.01, n_hidden=4)
+    try:
+        #data = pd.read_csv(str(Path(__file__).resolve().parent/"Results/TrainingData/TD_2006_2007.csv"))
+        data = pd.read_csv("/Users/theajonsson/Desktop/2006_2007_80km/TD/TD_2006_2007.csv")
+    except FileNotFoundError:
+        print("Error when reading .csv file")
+    train_model(data, epochs=1000, lr=0.01, n_hidden=4)
 
-end_time = time.time()
-print(f"Elapsed time: {end_time - start_time}")
+    end_time = time.time()
+    print(f"Elapsed time: {end_time - start_time}")
 
 
 

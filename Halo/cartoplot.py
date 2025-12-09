@@ -74,7 +74,7 @@ def cartoplot(coords_1, coords_2, data,
         m = ax.scatter(coords_1[i], coords_2[i], c=data[i],
                         s = dot_size,
                         transform=ccrs.epsg('3408'),
-                        zorder=100, cmap="viridis_r", vmin=0, vmax=7)
+                        zorder=100, cmap="viridis_r", vmin=0)#, vmax=7)
     #ax.set_title(title)
 
     cb = plt.colorbar(m, cax=ax_cb)

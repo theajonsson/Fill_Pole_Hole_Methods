@@ -44,6 +44,7 @@ def env_vs_cs2(year, month):
     SIT_env = SIT_env[valid_mask]
     SIT_cs2 = SIT_cs2[valid_mask]
 
+
     def linear_model(B, x):
         return B[0] + B[1] * x
     #
@@ -54,11 +55,7 @@ def env_vs_cs2(year, month):
     #
     intercept = out.beta[0]
     slope = out.beta[1]
-    #
-    #y_pred = intercept + slope * SIT_cs2
-    #ss_res = np.sum((SIT_env - y_pred)**2)
-    #ss_tot = np.sum((SIT_env - np.mean(SIT_env))**2)
-    #r_squared = 1 - ss_res/ss_tot
+
 
     bias = np.mean(SIT_env - SIT_cs2)
 

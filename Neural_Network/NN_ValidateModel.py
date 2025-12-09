@@ -37,15 +37,21 @@ group_SSMIS = ["scene_env1", "scene_env2"]
 # Input: brightness temperature (TB) [K] -> 5 different frequencies and polarization (V19, H19, V22, V37, H37)
 # Output: sea ice thickness (SIT) [m]
 class Model(nn.Module):
-    def __init__(self, in_features=5, n_hidden=4, n_outputs=1):
+    def __init__(self, in_features=5, n_hidden=3, n_outputs=1):
         super(Model, self).__init__()
         self.hidden1 = nn.Linear(in_features, n_hidden)
+        #self.hidden2 = nn.Linear(n_hidden, n_hidden)
+        #self.hidden3 = nn.Linear(n_hidden, n_hidden)
         self.activation = nn.Tanh()                       
         self.output = nn.Linear(n_hidden, n_outputs)    
 
     def forward(self, x):
         x = self.hidden1(x)
         x = self.activation(x)
+        #x = self.hidden2(x)
+        #x = self.activation(x)
+        #x = self.hidden3(x)
+        #x = self.activation(x)
         x = self.output(x)          
         return x
 
@@ -59,7 +65,7 @@ Purpose:    Create synthetic satellite tracks in the pole hole (from lat_level t
 Input:      NaN
 Return:     x, y (float)
 """ 
-def synthetic_tracks(lat_level=81.5, max_lat_level = 88, hemisphere="n"):
+def synthetic_tracks(lat_level=81.5, max_lat_level=88, hemisphere="n"):
     d = nc.Dataset(Path(__file__).resolve().parent/"NSIDC0772_LatLon_EASE2_N3.125km_v1.1.nc", "r", format="NETCDF4")
     lats = np.array(d["latitude"])
     lons = np.array(d["longitude"])
@@ -187,7 +193,7 @@ def polehole(year, month, debug=False):
 
     model = Model()
     #NN_model = torch.load(str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth")) 
-    NN_model = torch.load("/Users/theajonsson/Desktop/20-24oct/TD_2011_2012/SSMIS_1month.pth")
+    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h1n3/NN_Model.pth")
     model.load_state_dict(NN_model["model_state_dict"])
     scaler = NN_model["scaler"]
 
@@ -204,7 +210,6 @@ def polehole(year, month, debug=False):
     # SSMIS
     if True:
         folder_path_SSMIS = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMIS/{year}/{month}/")
-        #folder_path_SSMIS = "/Volumes/Thea_SSD_1T/Fill_Pole_Hole_methods/Data/TB_2006_03_SSMIS"
         files_SSMIS = sorted([f for f in os.listdir(folder_path_SSMIS) if f[0].isalnum()])
 
         y_eval_all = pd.DataFrame()
@@ -224,7 +229,7 @@ def polehole(year, month, debug=False):
                     index += 1
 
             Test_TB = df_TB_SSMIS[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
-            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values 
+            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values
 
             Test_TB = scaler.fit_transform(Test_TB)
             Test_TB = torch.FloatTensor(Test_TB)
@@ -239,18 +244,17 @@ def polehole(year, month, debug=False):
 
     # SSM/I
     if False:
-        #folder_path_SSMIS = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMIS/{year}/{month}/")
-        folder_path_SSMIS = "/Volumes/Thea_SSD_1T/Fill_Pole_Hole_methods/Data/TB_2006_03_SSM_I"
-        files_SSMIS = sorted([f for f in os.listdir(folder_path_SSMIS) if f[0].isalnum()])
+        folder_path_SSMI = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMI/{year}/{month}/")
+        files_SSMI = sorted([f for f in os.listdir(folder_path_SSMI) if f[0].isalnum()])
 
         y_eval_all = pd.DataFrame()
         day = 1
-        for file_SSMIS in files_SSMIS:
+        for file_SSMI in files_SSMI:
             index = 0
             vh = [0, 1, 2, 3, 4]
         
             for j in range(len(vh)):
-                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSM_I(x, y, os.path.join(folder_path_SSMIS,file_SSMIS), group_SSM_I, vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
+                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSM_I(x, y, os.path.join(folder_path_SSMI,file_SSMI), group_SSM_I, vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
 
                 df_TB_SSMIS[columns[index]] = TB_freq     
                 index += 1
@@ -278,7 +282,7 @@ def polehole(year, month, debug=False):
         "X": TB_xy[:,0],
         "Y": TB_xy[:,1]
     })
-    df.to_csv("/Users/theajonsson/Desktop/Validate_PredSIT_SSMIS.csv", index=False)
+    #df.to_csv("/Users/theajonsson/Desktop/Validate_PredSIT.csv", index=False)
 
     X = df["X"].values
     Y = df["Y"].values
@@ -356,6 +360,9 @@ def polehole(year, month, debug=False):
     V_tot = np.nansum(V_cell) 
 
     print(f"Volume inside the pole hole: {V_tot} [km^3]")
+
+    end_time = time.time()
+    print(f"Elapsed time: {end_time - start_time}")
 
 
 
@@ -448,7 +455,7 @@ data = {
 folder_CS2 = str(Path(__file__).resolve().parent.parent/"Data/Cryosat_Monthly/")
 
 # Estimated SIV inside the pole hole
-if False:
+if True:
     for year, months in data.items():
         for month in months:
             print(f"{year}-{month}")
@@ -487,6 +494,7 @@ if False:
 
     bias = np.mean(pred_values - cs2_values)
     slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
+    print(slope)
     r_squared = r_value**2
     rmse = mean_squared_error(cs2_values, pred_values, squared=False)
     mean_pred = np.nanmean(pred_values)
@@ -495,10 +503,9 @@ if False:
     plt.figure()
     plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
     plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
+    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
     plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
     plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
-    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
-
     plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
 
     plt.xlabel("CS2 volume [km$^3$]")
@@ -506,7 +513,8 @@ if False:
     plt.xlim(0, 10000)
     plt.ylim(0, 10000)
     plt.grid(True)
-    plt.legend(loc="lower right")
+    plt.legend(loc="upper left", ncol=2)
     plt.tight_layout()
-    plt.savefig("/Users/theajonsson/Desktop/ComplexMethod.png", dpi=300, bbox_inches="tight")
+    dir = str(Path(__file__).resolve().parent/"Results/")
+    plt.savefig(os.path.join(dir,"NN_Method.png"), dpi=300, bbox_inches="tight")
     plt.show()

@@ -39,12 +39,24 @@ class Model(nn.Module):
     def __init__(self, in_features=5, n_hidden=4, n_outputs=1):
         print(f"n_hidden = {n_hidden}")
         super(Model, self).__init__()
-        self.hidden = nn.Linear(in_features, n_hidden)
-        self.activation = nn.Tanh()                      
+        self.hidden1 = nn.Linear(in_features, n_hidden)
+        self.hidden2 = nn.Linear(n_hidden, n_hidden)
+        self.hidden3 = nn.Linear(n_hidden, n_hidden)
+        self.hidden4 = nn.Linear(n_hidden, n_hidden)
+        self.hidden5 = nn.Linear(n_hidden, n_hidden)
+        self.activation = nn.Tanh()                       
         self.output = nn.Linear(n_hidden, n_outputs)    
 
     def forward(self, x):
-        x = self.hidden(x)
+        x = self.hidden1(x)
+        x = self.activation(x)
+        x = self.hidden2(x)
+        x = self.activation(x)
+        x = self.hidden3(x)
+        x = self.activation(x)
+        x = self.hidden4(x)
+        x = self.activation(x)
+        x = self.hidden5(x)
         x = self.activation(x)
         x = self.output(x)          
         return x
@@ -142,7 +154,7 @@ def run(n_hidden, x, y, tree, SIT_CS2, lons_valid, lats_valid, land_mask_data):
                 vh = [1, 0]     # Channel number: scene_env2 -> [V37, H37]
             
             for j in range(len(vh)):
-                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSMIS(x, y, os.path.join(folder_path_SSMIS+file_SSMIS), group_SSMIS[i], vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
+                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSMIS(x, y, os.path.join(folder_path_SSMIS,file_SSMIS), group_SSMIS[i], vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
 
                 df_TB_SSMIS[columns[index]] = TB_freq     
                 index += 1

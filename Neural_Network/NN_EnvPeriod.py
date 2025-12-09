@@ -1,28 +1,49 @@
-"""
-File:       Averaging_all.py
-Purpose:    Calculates total sea ice volume (SIV) [km^3] in Arctic, it first calculates inside and then outside 
-            the pole hole, the volume inside the pole hole is based on average sea ice thickness (SIT) [m] 
-            around the pole hole. This file is used when estimating the SIV for the whole Envisat period (2002-2012), 
-            so the pole hole is defined from 81.5° N and upwards (90° N).
-
-Function:   format_SIT_hole, format_SIT_outside, format_SIC, calc_SIC_mean, synthetic_tracks, cell_area, volume
-
-Other:      Created by Thea Jonsson 2025-11-10
-"""
+# 2025-12-02
 
 import os
 from pathlib import Path
-import netCDF4 as nc
+import time
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime
-from scipy.spatial import KDTree
-from scipy.stats import linregress
-from scipy.ndimage import distance_transform_edt
+import format_data as fd 
+from cartoplot import cartoplot, multi_cartoplot
 from ll_xy import lonlat_to_xy
-from cartoplot import cartoplot
+from sklearn.metrics import mean_squared_error
+from scipy.stats import linregress
+from scipy.spatial import KDTree
+import netCDF4 as nc
+from scipy.ndimage import distance_transform_edt
+
+
+
+""" ========================================================================================== """
+group_SSM_I = "scene_env"
+group_SSMIS = ["scene_env1", "scene_env2"]
+""" ========================================================================================== """
+
+# NN model using MLP architecture
+# Input: brightness temperature (TB) [K] -> 5 different frequencies and polarization (V19, H19, V22, V37, H37)
+# Output: sea ice thickness (SIT) [m]
+class Model(nn.Module):
+    def __init__(self, in_features=5, n_hidden=4, n_outputs=1):
+        super(Model, self).__init__()
+        self.hidden1 = nn.Linear(in_features, n_hidden)
+        self.hidden2 = nn.Linear(n_hidden, n_hidden)
+        self.activation = nn.Tanh()                       
+        self.output = nn.Linear(n_hidden, n_outputs)    
+
+    def forward(self, x):
+        x = self.hidden1(x)
+        x = self.activation(x)
+        x = self.hidden2(x)
+        x = self.activation(x)
+        x = self.output(x)          
+        return x
+
 
 
 
@@ -61,10 +82,6 @@ def land_mask(min_distance_km=50, lat_level=66):
     lons_valid = lons_flat[valid]
     land_mask_data = np.full_like(lats_valid, 255, dtype=np.uint8) 
 
-    #lats_valid = lats_valid[::8]
-    #lons_valid = lons_valid[::8]
-    #land_mask_data = land_mask_data[::8]
-
     return lons_valid, lats_valid, land_mask_data
 
 
@@ -92,31 +109,6 @@ def nearest_neighbor(lon_1, lat_1, lon_2, lat_2, data):
     data = data[indices]                          
 
     return distances, nearest_coords, data
-
-
-
-"""
-Function:   format_SIT_hole
-Purpose:    Format file from the RA-2 instrument on the Envisat satellite
-            Read NetCDF file, loads data (lat, SIT), masks SIT to save positive values from lat_level to max_lat  
-            and average all these values 
-
-Input:      file_paths (string)
-Return:     average_SIT (float)
-"""
-def format_SIT_hole(file_paths, lat_level=75, max_lat=81.5, hemisphere="n"):
-
-    dataset = nc.Dataset(file_paths, "r", format="NETCDF4")
-    lat_SIT = np.array(dataset["lat"]).flatten()
-    SIT = dataset["sea_ice_thickness"][:].filled(np.nan).flatten()     # NaN instead of _FillValue=9.969209968386869e+36
-    dataset.close()
-
-    mask = (lat_SIT >= lat_level) & (lat_SIT <= max_lat) & (SIT >= 0)
-    SIT = SIT[mask]
-
-    average_SIT = np.nanmean(SIT)
-
-    return average_SIT
 
 
 
@@ -276,47 +268,196 @@ def cell_area():
 
 """
 Function:   volume
-Purpose:    Calculates volume inisde and outside the pole hole, add them together for total Arctic volume for each month
-            Uses function: format_SIT_hole, synthetic_tracks, calc_SIC_mean, cell_area, format_SIT_outside
-            Optional debug: plot the SIV inside and outside the pole hole
+Purpose:    Predicts SIT inside the pole hole (using synthetic satellite tracks) with TB data as input to the NN model, 
+            then calculates the SIV inside the pole hole and also the outisde using gridded EnviSat SIT data, 
+            this is then added together for a total Arctic volume 
+            Uses functions: synthetic_tracks, cell_area, format_SIT_outside
+            Uses functions from format_data.py: land_mask, format_SSMIS, format_SIT, format_SIC
+            Optional debug: plot 
 
 Input:      year, month (string)
 Return:     V_total (float)
 """
 def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
+    start_time = time.time()
+
+    model = Model()
+    #NN_model = torch.load(str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth")) 
+    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h2n4/NN_Model.pth")
+    model.load_state_dict(NN_model["model_state_dict"])
+    scaler = NN_model["scaler"]
+
+    x,y = synthetic_tracks()
+
+    columns = ["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37", "X_SIT", "Y_SIT"]
+    df_TB = pd.DataFrame(columns=columns) 
+    index = 0
+    df_TB["X_SIT"] = x
+    df_TB["Y_SIT"] = y
+
+    year_int = int(year)
+    if 2002 <= year_int <= 2005 or (year == "2006" and month in ["01", "02", "03", "04"]):
+        sensor = "SSMI"
+    else:
+        sensor = "SSMIS"
+    print(f"Using sensor:{sensor} for {year}-{month}")
+
+    folder = Path(__file__).resolve().parent.parent
+    if sensor == "SSMI":
+        folder = folder / f"Data/TB_SSMI/{year}/{month}/"
+        tb_order = list(range(5))    
+    else:
+        folder = folder / f"Data/TB_SSMIS/{year}/{month}/"
+        tb_order = [
+            ("scene_env1", 1),  # 19V
+            ("scene_env1", 0),  # 19H
+            ("scene_env1", 2),  # 22V
+            ("scene_env2", 1),  # 37V
+            ("scene_env2", 0)   # 37H
+        ]
+    files = sorted([f for f in os.listdir(folder) if f[0].isalnum()])
+
+    y_eval_all = pd.DataFrame()
+    day = 1
+    for file in files:
+        index = 0
+
+        if sensor == "SSMI":
+            for vh in tb_order:
+                _, _, _, TB_freq, _ = fd.format_SSM_I(x, y, os.path.join(folder, file), group_SSM_I, vh, lons_valid, lats_valid, land_mask_data)
+                df_TB[columns[index]] = TB_freq
+                index += 1
+
+        elif sensor == "SSMIS":
+            for group, channel in tb_order:
+                _, _, _, TB_freq, _ = fd.format_SSMIS(x, y, os.path.join(folder, file), group, channel, lons_valid, lats_valid, land_mask_data)
+                df_TB[columns[index]] = TB_freq
+                index += 1
+        
+        Test_TB = df_TB[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
+        TB_xy =  df_TB[["X_SIT","Y_SIT"]].values 
+
+        Test_TB = scaler.fit_transform(Test_TB)
+        Test_TB = torch.FloatTensor(Test_TB)
+
+        with torch.no_grad():
+            y_eval = model(Test_TB)
+
+        y_eval_all[f"Day_{day}"] = y_eval.squeeze().numpy()
+        print(f"Day {day} done")
+        day += 1
+
+    y_eval_mean = np.array(y_eval_all.mean(axis=1))
+
+    # SSM/I
+    if False:
+        folder_path_SSMI = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMI/{year}/{month}/")
+        files_SSMI = sorted([f for f in os.listdir(folder_path_SSMI) if f[0].isalnum()])
+
+        y_eval_all = pd.DataFrame()
+        day = 1
+        for file_SSMI in files_SSMI:
+            index = 0
+            vh = [0, 1, 2, 3, 4]
+        
+            for j in range(len(vh)):
+                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSM_I(x, y, os.path.join(folder_path_SSMI,file_SSMI), group_SSM_I, vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
+
+                df_TB_SSMIS[columns[index]] = TB_freq     
+                index += 1
+
+            Test_TB = df_TB_SSMIS[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
+            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values 
+
+            Test_TB = scaler.fit_transform(Test_TB)
+            Test_TB = torch.FloatTensor(Test_TB)
+
+            with torch.no_grad():
+                y_eval = model.forward(Test_TB)
+            
+            y_eval_all[f"Day_{day}"] = y_eval.squeeze().numpy()
+            print(f"Day_{day} done")
+            day += 1
+        y_eval_mean = np.array(y_eval_all.mean(axis=1))
+
+    # SSMIS
+    if False:
+        folder_path_SSMIS = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMIS/{year}/{month}/")
+        files_SSMIS = sorted([f for f in os.listdir(folder_path_SSMIS) if f[0].isalnum()])
+
+        y_eval_all = pd.DataFrame()
+        day = 1
+        for file_SSMIS in files_SSMIS:
+            index = 0
+            tb_order = [
+                ("scene_env1", 1),   # 19V
+                ("scene_env1", 0),   # 19H
+                ("scene_env1", 2),   # 22V
+                ("scene_env2", 1),   # 37V
+                ("scene_env2", 0)    # 37H
+            ]
+            for group, channel in tb_order:                
+                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSMIS(x, y, os.path.join(folder_path_SSMIS,file_SSMIS), group, channel, lons_valid, lats_valid, land_mask_data, debug=False)
+                df_TB_SSMIS[columns[index]] = TB_freq     
+                index += 1
+
+            Test_TB = df_TB_SSMIS[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
+            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values 
+
+            Test_TB = scaler.fit_transform(Test_TB)
+            Test_TB = torch.FloatTensor(Test_TB)
+
+            with torch.no_grad():
+                y_eval = model.forward(Test_TB)
+            
+            y_eval_all[f"Day_{day}"] = y_eval.squeeze().numpy()
+            print(f"Day_{day} done")
+            day += 1
+        y_eval_mean = np.array(y_eval_all.mean(axis=1))
+
+    df = pd.DataFrame({
+        "PredSIT": y_eval_mean,
+        "X": TB_xy[:,0],
+        "Y": TB_xy[:,1]
+    })
+
+    X = df["X"].values
+    Y = df["Y"].values
+    SIT_pred = df["PredSIT"]
+   
+
+
     # Volume inside of the pole hole
-    file_sit = os.path.join(folder_SIT, year, f"ESACCI-SEAICE-L3C-SITHICK-RA2_ENVISAT-NH25KMEASE2-{year}{month}-fv2.0.nc")
-    average_SIT = format_SIT_hole(file_sit)
-    print(f"Mean value of inside SIT: {average_SIT} m")
+    print(f"Mean value of inside predicted SIT: {np.nanmean(SIT_pred)} m")
 
-    X, Y = synthetic_tracks()
+    x_SIC, y_SIC, SIC_mean = calc_SIC_mean(year=year, month=month)
 
-    x_SIC, y_SIC, SIC_mean = calc_SIC_mean(year=year, month=month) 
+    tree = KDTree(list(zip(x_SIC.flatten(),y_SIC.flatten()))) # Gridded SIC
+    _, indices = tree.query(list(zip(X.flatten(),Y.flatten()))) # Syntethic tracks
+    SIC_in = SIC_mean[indices]
 
-    tree = KDTree(list(zip(x_SIC.flatten(),y_SIC.flatten()))) 
-    _, indices = tree.query(list(zip(X.flatten(),Y.flatten()))) 
-    SIC_in = SIC_mean[indices]    # Unit: %
+    area_cell = cell_area()
 
-    SIT = np.full(len(indices), average_SIT)    # Unit: m
-
-    area_cell = cell_area()     # Unit: km^2
-
-    V_cell_in = ((SIT/1000)*(SIC_in/100))*area_cell
+    # Calculate volume inside
+    V_cell_in = ((SIT_pred*1e-3)*(SIC_in/100))*area_cell
     V_cell_in[V_cell_in == 0] = np.nan
-    V_tot_in = np.nansum(V_cell_in)
-    print(f"Volume inside the pole hole: {V_tot_in} km^3")
+    V_tot_in = np.nansum(V_cell_in) 
+    print(f"Volume inside the pole hole: {V_tot_in} [km^3]")
 
+    end_time = time.time()
+    print(f"Elapsed time: {end_time - start_time}")
 
+    
 
     # Volume outside of the pole hole
+    file_sit = os.path.join(folder_SIT, year, f"ESACCI-SEAICE-L3C-SITHICK-RA2_ENVISAT-NH25KMEASE2-{year}{month}-fv2.0.nc")
     x_SIT, y_SIT, SIT = format_SIT_outside(file_sit, lons_valid, lats_valid, land_mask_data)
     print(f"Mean value of outside SIT: {np.nanmean(SIT)} m")
 
-
     tree = KDTree(list(zip(x_SIC.flatten(),y_SIC.flatten()))) 
     _, indices = tree.query(list(zip(x_SIT.flatten(),y_SIT.flatten()))) 
-    SIC_out = SIC_mean[indices]   
+    SIC_out = SIC_mean[indices]    
 
     V_cell_out = ((SIT/1000)*(SIC_out/100))*area_cell
     V_cell_out[V_cell_out == 0] = np.nan
@@ -325,7 +466,7 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
 
 
-    # Total volume in whole Arctic Ocean
+    # Total volume in the Arctic Ocean
     V_total = V_tot_in + V_tot_out
     print(f"Total volume in Arctic is: {V_total} km^3 \n")
 
@@ -343,20 +484,18 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
 
 
-
-
 data = {
-    "2002": ["10", "11", "12"],
-    "2003": ["01", "02", "03", "04", "10", "11", "12"],
-    "2004": ["01", "02", "03", "04", "10", "11", "12"],
-    "2005": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2002": ["10", "11", "12"],
+    #"2003": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2004": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2005": ["01", "02", "03", "04", "10", "11", "12"],
     "2006": ["01", "02", "03", "04", "10", "11", "12"],
-    "2007": ["01", "02", "03", "04", "10", "11", "12"],
-    "2008": ["01", "02", "03", "04", "10", "11", "12"],
-    "2009": ["01", "02", "03", "04", "10", "11", "12"],
-    "2010": ["01", "02", "03", "04", "10", "11", "12"],
-    "2011": ["01", "02", "03", "04", "10", "11", "12"],
-    "2012": ["01", "02", "03"]
+    #"2007": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2008": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2009": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2010": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2011": ["01", "02", "03", "04", "10", "11", "12"],
+    #"2012": ["01", "02", "03"]
 }
 
 folder_SIT = str(Path(__file__).resolve().parent.parent/"Data/Envisat_Monthly/")
@@ -370,5 +509,11 @@ for year, months in data.items():
         print(f"{year}-{month}")
         V_total = volume(year, month, lons_valid, lats_valid, land_mask_data)
 
-        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/HaloMethod_EnvPeriod.txt"), "a") as file:
+        #with open(str(Path(__file__).resolve().parent/"Total_volume_pred_EnvPeriod.txt"), "a") as file:
+        #        file.write(f"{year}-{month}: {V_total}\n")
+
+        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/NNMethod_EnvPeriod.txt"), "a") as file:
+        #    file.write(f"{year}-{month}: {V_total}\n")
+
+        #with open(str(Path(__file__).resolve().parent/"Results/Predicted_SIV_EnvPeriod/Total_volume_EnvPeriod.txt"), "a") as file:
         #    file.write(f"{year}-{month}: {V_total}\n")

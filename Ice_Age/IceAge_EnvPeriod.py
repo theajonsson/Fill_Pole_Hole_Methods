@@ -1,8 +1,9 @@
 """
-File:       Averaging_all.py
-Purpose:    Calculate total sea ice volume (SIV) [km^3] in Arctic by first calculate inside and then outside the pole hole
-            Where the volume inside the pole hole is based on average sea ice thickness (SIT) [m] for where different
-            sea ice types exists. The ice types regards first-year ice (FYI), multi-year ice (MYI) and ambiguous ice type. 
+File:       IceAge_EnvPeriod.py
+Purpose:    Calculate total sea ice volume (SIV) [km^3] in Arctic during the operatinal time period of Envisat.
+            First by calculate inside and then outside the pole hole, where the volume inside the pole hole is based on 
+            average sea ice thickness (SIT) [m] for where different sea ice types exists. 
+            The ice types regards first-year ice (FYI), multi-year ice (MYI) and ambiguous ice type. 
 
 Function:   format_type, calc_type_mean, nearest_neighbor, land_mask, format_SIT, format_SIC, calc_SIC_mean,
             cell_area, format_SIT_outside, volume
@@ -31,7 +32,7 @@ Input:      file_paths (string)
 Return:     x, y (float)
             fyi, myi, amb (float)
 """
-def format_type(file_paths, lat_level=81.5, hemisphere="n"):
+def format_type(file_paths, lat_level=75, mid_lat_level=81.5, max_lat_level = 90, hemisphere="n"):
     
     dataset = nc.Dataset(file_paths, "r", format="NETCDF4")
     lon = np.array(dataset["lon"]).flatten()
@@ -41,14 +42,23 @@ def format_type(file_paths, lat_level=81.5, hemisphere="n"):
 
     x, y = lonlat_to_xy(lat, lon, hemisphere)
 
-    first_year_ice = (lat >= lat_level) & (ice_type == 2)  
-    multi_year_ice = (lat >= lat_level) & (ice_type == 3) 
-    ambiguous = (lat >= lat_level) & (ice_type == 4) 
-    fyi = np.where(first_year_ice, ice_type, np.nan)
-    myi = np.where(multi_year_ice, ice_type, np.nan)
-    amb = np.where(ambiguous, ice_type, np.nan)
+    first_year_ice = (ice_type == 2)
+    multi_year_ice = (ice_type == 3)
+    ambiguous      = (ice_type == 4)
 
-    return x, y, fyi, myi, amb
+    def mask_by_lat(lat_min, lat_max):
+        lat_mask = (lat >= lat_min) & (lat <= lat_max)
+
+        fyi = np.where(lat_mask & first_year_ice, ice_type, np.nan)
+        myi = np.where(lat_mask & multi_year_ice, ice_type, np.nan)
+        amb = np.where(lat_mask & ambiguous,      ice_type, np.nan)
+
+        return x, y, fyi, myi, amb
+
+    set_Avg = mask_by_lat(lat_level, mid_lat_level)
+    set_Hole = mask_by_lat(mid_lat_level, max_lat_level)
+
+    return set_Avg, set_Hole
 
 
 
@@ -69,33 +79,50 @@ def calc_type_mean(year=2010, month=11):
         f for f in os.listdir(folder_path_type)
         if f.startswith("ice_type_nh") and f[0].isalnum()
     ])
-    fyi_all = pd.DataFrame()
-    myi_all = pd.DataFrame()
-    amb_all = pd.DataFrame()
+
+    fyi_avg_all = pd.DataFrame()
+    myi_avg_all = pd.DataFrame()
+    amb_avg_all = pd.DataFrame()
+    fyi_hole_all = pd.DataFrame()
+    myi_hole_all = pd.DataFrame()
+    amb_hole_all = pd.DataFrame()
     day = 1
     for files_type in files_type:
-        x, y, fyi, myi, amb = format_type(os.path.join(folder_path_type,files_type))
-        fyi_all[f"Day_{day}"] = fyi.flatten()
-        myi_all[f"Day_{day}"] = myi.flatten()
-        amb_all[f"Day_{day}"] = amb.flatten()
+        (x_avg, y_avg, fyi_avg, myi_avg, amb_avg), (x_hole, y_hole, fyi_hole, myi_hole, amb_hole) = format_type(os.path.join(folder_path_type, files_type))
+        fyi_avg_all[f"Day_{day}"] = fyi_avg.flatten()
+        myi_avg_all[f"Day_{day}"] = myi_avg.flatten()
+        amb_avg_all[f"Day_{day}"] = amb_avg.flatten()
+        fyi_hole_all[f"Day_{day}"] = fyi_hole.flatten()
+        myi_hole_all[f"Day_{day}"] = myi_hole.flatten()
+        amb_hole_all[f"Day_{day}"] = amb_hole.flatten()
         day += 1
 
-    fyi_mean = np.array(fyi_all.mean(axis=1))   
-    myi_mean = np.array(myi_all.mean(axis=1))
-    amb_mean = np.array(amb_all.mean(axis=1))
+    fyi_avg_mean = np.array(fyi_avg_all.mean(axis=1))
+    myi_avg_mean = np.array(myi_avg_all.mean(axis=1))
+    amb_avg_mean = np.array(amb_avg_all.mean(axis=1))
+    fyi_hole_mean = np.array(fyi_hole_all.mean(axis=1))
+    myi_hole_mean = np.array(myi_hole_all.mean(axis=1))
+    amb_hole_mean = np.array(amb_hole_all.mean(axis=1))
 
-    mask_fyi = ~np.isnan(fyi_mean)
-    mask_myi = ~np.isnan(myi_mean)
-    mask_amb = ~np.isnan(amb_mean)
+    mask_fyi_avg = ~np.isnan(fyi_avg_mean)
+    mask_myi_avg = ~np.isnan(myi_avg_mean)
+    mask_amb_avg = ~np.isnan(amb_avg_mean)
+    mask_fyi_hole = ~np.isnan(fyi_hole_mean)
+    mask_myi_hole = ~np.isnan(myi_hole_mean)
+    mask_amb_hole = ~np.isnan(amb_hole_mean)
 
-    x_fyi = x[mask_fyi]
-    y_fyi = y[mask_fyi]
-    x_myi = x[mask_myi]
-    y_myi = y[mask_myi]
-    x_amb = x[mask_amb]
-    y_amb = y[mask_amb]
+    result_avg = (
+        x_avg[mask_fyi_avg], y_avg[mask_fyi_avg],
+        x_avg[mask_myi_avg], y_avg[mask_myi_avg],
+        x_avg[mask_amb_avg], y_avg[mask_amb_avg]
+    )
+    result_hole = (
+        x_hole[mask_fyi_hole], y_hole[mask_fyi_hole],
+        x_hole[mask_myi_hole], y_hole[mask_myi_hole],
+        x_hole[mask_amb_hole], y_hole[mask_amb_hole]
+    )
 
-    return x_fyi, y_fyi, x_myi, y_myi, x_amb, y_amb
+    return result_avg, result_hole
 
 
 
@@ -134,7 +161,7 @@ Input:      N/A
 Return:     lons_valid, lats_valid (float): valid lon/lat coordinates where water is with a distance from land
             land_mask_data (uint8): mask array indicating only water pixels    
 """
-def land_mask(min_distance_km=50, lat_level=60):
+def land_mask(min_distance_km=50, lat_level=66):
 
     dataset = nc.Dataset(Path(__file__).resolve().parent/"NSIDC0772_LatLon_EASE2_N3.125km_v1.1.nc", "r", format="NETCDF4")
     lats = np.array(dataset["latitude"])
@@ -176,7 +203,7 @@ Input:      file_paths (string)
 Return:     x_SIT, y_SIT (float)
             SIT (float): sea ice thickness (SIT) [m]
 """
-def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
+def format_SIT(file_paths, lat_level=75, max_lat_level=81.5, hemisphere="n"):
 
     dataset = nc.Dataset(file_paths, "r", format="NETCDF4")
     lon_SIT = np.array(dataset["lon"]).flatten()
@@ -184,7 +211,7 @@ def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
     SIT = dataset["sea_ice_thickness"][:].filled(np.nan).flatten()     # NaN instead of _FillValue=9.969209968386869e+36
     dataset.close()
 
-    mask = (lat_SIT >= lat_level) & (SIT >= 0) 
+    mask = (lat_SIT >= lat_level) & (lat_SIT <= max_lat_level) & (SIT >= 0)
     lat_SIT = lat_SIT[mask]
     lon_SIT = lon_SIT[mask]
     SIT = SIT[mask]
@@ -200,6 +227,7 @@ def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
     SIT = SIT[mask]
 
     return x_SIT, y_SIT, SIT
+
 
 
 
@@ -288,7 +316,7 @@ Input:      file_paths (string)
 Return:     mask (boolean)
             SIT (float): sea ice thickness (SIT) [m]
 """
-def format_SIT_outside(file_path, lons_valid, lats_valid, land_mask_data, lat_level=60, max_lat_level=81.5, hemisphere="n"):
+def format_SIT_outside(file_path, lons_valid, lats_valid, land_mask_data, lat_level=66, max_lat_level=81.5, hemisphere="n"):
     
     dataset = nc.Dataset(file_path, "r", format="NETCDF4")
     lon_SIT = np.array(dataset["lon"]).flatten()
@@ -301,14 +329,15 @@ def format_SIT_outside(file_path, lons_valid, lats_valid, land_mask_data, lat_le
     lat_SIT = lat_SIT[mask]
     SIT = SIT[mask]
 
-    distances, nearest_coords, land_mask_data = nearest_neighbor(lon_SIT, lat_SIT, lons_valid, lats_valid, land_mask_data)
+    x_SIT,y_SIT = lonlat_to_xy(lat_SIT, lon_SIT, hemisphere)
+    x_valid,y_valid = lonlat_to_xy(lats_valid, lons_valid, hemisphere)
 
-    x,y = lonlat_to_xy(nearest_coords[:,1], nearest_coords[:,0], hemisphere)
+    distances, nearest_coords, land_mask_data = nearest_neighbor(x_SIT, y_SIT, x_valid, y_valid, land_mask_data)
 
-    land_mask = land_mask_data == 255
-    x = x[land_mask]
-    y = y[land_mask]
-    SIT = SIT[land_mask]    
+    mask = distances < 10000        
+    x = nearest_coords[:,0][mask]
+    y = nearest_coords[:,1][mask]
+    SIT = SIT[mask]
 
     return x, y, SIT
 
@@ -327,12 +356,14 @@ Return:     V_total (float)
 def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
     # Average sea ice type: NaN pixels will be filled with a value if comming day has a value on that pixel
-    x_fyi, y_fyi, x_myi, y_myi, x_amb, y_amb = calc_type_mean(year=year, month=month)
+    result_avg, result_hole = calc_type_mean(year=year, month=month)
+    x_fyi_avg, y_fyi_avg, x_myi_avg, y_myi_avg, x_amb_avg, y_amb_avg = result_avg
+    x_fyi_hole, y_fyi_hole, x_myi_hole, y_myi_hole, x_amb_hole, y_amb_hole = result_hole
 
     file_sit = os.path.join(folder_sit, year, f"ESACCI-SEAICE-L3C-SITHICK-RA2_ENVISAT-NH25KMEASE2-{year}{month}-fv2.0.nc")
     x_SIT, y_SIT, SIT = format_SIT(file_sit)
-    _, coords_fyi, SIT_fyi = nearest_neighbor(x_fyi, y_fyi, x_SIT, y_SIT, SIT)
-    _, coords_myi, SIT_myi = nearest_neighbor(x_myi, y_myi, x_SIT, y_SIT, SIT)
+    _, coords_fyi, SIT_fyi = nearest_neighbor(x_fyi_avg, y_fyi_avg, x_SIT, y_SIT, SIT)
+    _, coords_myi, SIT_myi = nearest_neighbor(x_myi_avg, y_myi_avg, x_SIT, y_SIT, SIT)
     average_SIT_fyi = np.nanmean(SIT_fyi)
     average_SIT_myi = np.nanmean(SIT_myi)
     mean = ((average_SIT_fyi+average_SIT_myi)/2)
@@ -341,9 +372,9 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     print(f"Mean value of inside MYI SIT: {average_SIT_myi} m")
 
     # Overlap between FYI, MYI and ambiguous ice type
-    df_fyi = pd.DataFrame({"x": x_fyi,"y": y_fyi})
-    df_myi = pd.DataFrame({"x": x_myi,"y": y_myi})
-    df_amb = pd.DataFrame({"x": x_amb,"y": y_amb})
+    df_fyi = pd.DataFrame({"x": x_fyi_hole,"y": y_fyi_hole})
+    df_myi = pd.DataFrame({"x": x_myi_hole,"y": y_myi_hole})
+    df_amb = pd.DataFrame({"x": x_amb_hole,"y": y_amb_hole})
 
     # Overlap FYI o MYI
     overlap_1 = pd.merge(df_fyi, df_myi, on=["x", "y"], suffixes=("_x", "_y")) 
@@ -376,8 +407,6 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     X = np.array(total["x"])
     Y = np.array(total["y"])
     SIT = np.array(total["SIT"])
-
-
 
     # Volume for inside of the pole hole
     x_SIC, y_SIC, SIC_mean = calc_SIC_mean(year=year, month=month)
@@ -456,8 +485,5 @@ for year, months in data.items():
         print(f"{year}-{month}")
         V_total = volume(year, month, lons_valid, lats_valid, land_mask_data)
 
-        with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/IceAgeMethod_EnvPeriod.txt"), "a") as file:
-            file.write(f"{year}-{month}: {V_total}\n")
-
-        #with open(str(Path(__file__).resolve().parent/"Results/Total_volume_EnvPeriod.txt"), "a") as file:
+        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/IceAgeMethod_EnvPeriod.txt"), "a") as file:
         #    file.write(f"{year}-{month}: {V_total}\n")

@@ -60,22 +60,21 @@ if False:
        
 
 # Plots histogram and cartoplot of the difference in predicted SIT (SSM/I - SSMIS) 
-# Trained on a model with TB and SIT, from October 2011 to March 2012, with 1 hidden layer and 4 hidden nodes
-# Using this model with TB+ical values from March 2006
 if False:
-    SSM_I = pd.read_csv(str(Path(__file__).resolve().parent/"Results/Inter_calibration/Validate_PredSIT_SSM_I.csv"))
-    SSMIS = pd.read_csv(str(Path(__file__).resolve().parent/"Results/Inter_calibration/Validate_PredSIT_SSMIS.csv"))
+    #SSM_I = pd.read_csv(str(Path(__file__).resolve().parent/"Results/Inter_calibration/Validate_PredSIT_SSM_I.csv"))
+    #SSMIS = pd.read_csv(str(Path(__file__).resolve().parent/"Results/Inter_calibration/Validate_PredSIT_SSMIS.csv"))
+    SSM_I = pd.read_csv("/Users/theajonsson/Desktop/Validate_PredSIT_SSMI_200603.csv")
+    SSMIS = pd.read_csv("/Users/theajonsson/Desktop/Validate_PredSIT_SSMIS_200603.csv")
 
-    # SSMIS.shape > SSM/I.shape -> using nearest-neighbour approach
     diff_TB = SSM_I["PredSIT"] - SSMIS["PredSIT"]
 
-    cartoplot([SSMIS["X"]], [SSMIS["Y"]], [diff_TB], cbar_label="Sea ice thickness [m]", save_name="PredSIT_carto")
+    cartoplot([SSMIS["X"]], [SSMIS["Y"]], [diff_TB], cbar_label="Difference in sea ice thickness [m]\n(SSM/I - SSMIS)", save_name="PredSIT_carto")
     plt.close()
 
     counts, bins, bars = plt.hist(diff_TB, bins=10)
     plt.bar_label(bars, fmt='%d')
-    plt.xlabel(f"Difference in SIT [m]")
-    plt.xlim([-0.2, 0.2])
+    plt.xlabel(f"Difference in sea ice thickness [m]\n(SSM/I - SSMIS)")
+    plt.xlim([-0.8, 0.8])
     plt.ylabel("Frequency")
     dir = str(Path(__file__).resolve().parent/"Results/Inter_calibration/")
     plt.savefig(os.path.join(dir,"PredSIT_hist.png"), dpi=300, bbox_inches="tight")
