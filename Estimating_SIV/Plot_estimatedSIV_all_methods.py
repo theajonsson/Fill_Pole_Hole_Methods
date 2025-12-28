@@ -9,6 +9,7 @@ import matplotlib.dates as mdates
 from datetime import datetime
 from scipy.stats import linregress
 import seaborn as sns
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 
@@ -140,7 +141,7 @@ nn_file = str(Path(__file__).resolve().parent/"NNMethod_EnvPeriod.txt")
 
 
 # CREATE PLOT FOR ESTIMATED SIV FOR ENVISTA PERIOD (2002-2012)
-if True:
+if False:
     halo_dates, halo_values = read_file(halo_file)
     type_dates, type_values = read_file(type_file)
     nn_dates, nn_values = read_file(nn_file)
@@ -192,6 +193,12 @@ if True:
     type_month = split_by_month(type_dates, type_values)
     nn_month = split_by_month(nn_dates, nn_values)
 
+    breakpoint()
+
+    
+
+    breakpoint()
+
     halo_slopes = calculate_slopes(halo_month)
     type_slopes = calculate_slopes(type_month)
     nn_slopes = calculate_slopes(nn_month)
@@ -214,10 +221,20 @@ if True:
 
     pivot_data = df.set_index("Month").transpose()
 
-    plt.figure(figsize=(10, 3))
-    sns.heatmap(pivot_data, annot=True, cmap="viridis", fmt=".3f", cbar=True, linewidths=0.5, linecolor="white", vmin=-45, vmax=-275, cbar_kws={"label": "Slope [km$^3$/year]"})
-    plt.ylabel("Method", fontsize=13)
-    plt.xlabel("")
+    fig, ax = plt.subplots(figsize=(7, 3))
+    hm = sns.heatmap(pivot_data, annot=True, cmap="viridis", fmt=".1f", linewidths=0.5, linecolor="white", 
+                cbar=False, vmin=-300, vmax=-40, ax=ax) #cbar_kws={"label": "Slope [km$^3$/year]", "orientation": "horizontal", "pad": 0.2})
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("top", size="7%", pad=0.4)
+    cbar = plt.colorbar(hm.collections[0], cax=cax, orientation="horizontal")
+    cax.xaxis.set_ticks_position("bottom")
+    cax.xaxis.set_label_position("top")
+    for spine in cax.spines.values():
+        spine.set_visible(False)
+    cbar.set_label("Slope [km$^3$/year]")
+    
+    ax.set_ylabel("Method", fontsize=10)
+    ax.set_xlabel("")
     plt.tight_layout()
     output_dir = str(Path(__file__).resolve().parent/"Results/")
     plt.savefig(os.path.join(output_dir, "Slope_Heatmap_EnvPeriod.png"), dpi=300, bbox_inches="tight")

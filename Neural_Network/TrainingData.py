@@ -46,6 +46,8 @@ def split_tracks(df, distance_segment = 50000):
   distances = np.sqrt(dx**2 + dy**2)
   distances = np.insert(distances, 0, 0)  # First data point: distance = 0
 
+  breakpoint()
+
   df_seg = pd.DataFrame({
           "SIT": [],
           "X_SIT": [],

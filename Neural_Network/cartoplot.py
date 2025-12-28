@@ -8,6 +8,8 @@ Other:      Based on Robbie Mallet's cartoplot.py (https://github.com/robbiemall
             Modified by Thea Jonsson since 2025-08-20
 """
 
+import os
+from pathlib import Path
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
@@ -185,7 +187,7 @@ def cartoplot(coords_1, coords_2, data,
         m = ax.scatter(coords_1[i], coords_2[i], c=data[i],
                         s = dot_size,
                         transform=ccrs.epsg('3408'),
-                        zorder=0, cmap="viridis_r", vmin=0)#, vmax=6)   cmap="bwr", vmin=-0.10, vmax=0.10)
+                        zorder=0, cmap="viridis_r", vmin=0)#, vmax=7)   #cmap="bwr", vmin=-0.10, vmax=0.10)
     ax.set_title(title)
 
     cb = plt.colorbar(m, cax=ax_cb)
@@ -194,8 +196,8 @@ def cartoplot(coords_1, coords_2, data,
     ax_cb.yaxis.set_tick_params(labelright=True)
         
     if  save_name:
-        dir = "/Users/theajonsson/Desktop/"
+        dir = str(Path(__file__).resolve().parent/"Results/Predicted_SIV_EnvPeriod/")
         save_format = ".png"
-        fig.savefig(dir+save_name+save_format, dpi=300, bbox_inches="tight")
+        fig.savefig(os.path.join(dir,save_name+save_format), dpi=300, bbox_inches="tight")
     else:    
         plt.show()

@@ -312,7 +312,7 @@ if False:
 
 
 # Plot predicted SIV against CS2 SIV
-if False:
+if True:
     with open(str(Path(__file__).resolve().parent/"Total_volume_pred.txt"), "r") as f:
         pred_values = np.array([float(line.strip().split(":")[1]) for line in f])
 
@@ -326,6 +326,7 @@ if False:
 
     bias = np.mean(pred_values - cs2_values)
     slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
+    print(slope)
     r_squared = r_value**2
     rmse = mean_squared_error(cs2_values, pred_values, squared=False)
     mean_pred = np.nanmean(pred_values)

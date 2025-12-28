@@ -37,21 +37,18 @@ group_SSMIS = ["scene_env1", "scene_env2"]
 # Input: brightness temperature (TB) [K] -> 5 different frequencies and polarization (V19, H19, V22, V37, H37)
 # Output: sea ice thickness (SIT) [m]
 class Model(nn.Module):
-    def __init__(self, in_features=5, n_hidden=3, n_outputs=1):
+    def __init__(self, in_features=5, n_hidden=4, n_outputs=1):
         super(Model, self).__init__()
         self.hidden1 = nn.Linear(in_features, n_hidden)
-        #self.hidden2 = nn.Linear(n_hidden, n_hidden)
-        #self.hidden3 = nn.Linear(n_hidden, n_hidden)
+        self.hidden2 = nn.Linear(n_hidden, n_hidden)
         self.activation = nn.Tanh()                       
         self.output = nn.Linear(n_hidden, n_outputs)    
 
     def forward(self, x):
         x = self.hidden1(x)
         x = self.activation(x)
-        #x = self.hidden2(x)
-        #x = self.activation(x)
-        #x = self.hidden3(x)
-        #x = self.activation(x)
+        x = self.hidden2(x)
+        x = self.activation(x)
         x = self.output(x)          
         return x
 
@@ -193,7 +190,7 @@ def polehole(year, month, debug=False):
 
     model = Model()
     #NN_model = torch.load(str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth")) 
-    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h1n3/NN_Model.pth")
+    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h2n4/NN_Model.pth")
     model.load_state_dict(NN_model["model_state_dict"])
     scaler = NN_model["scaler"]
 
@@ -455,7 +452,7 @@ data = {
 folder_CS2 = str(Path(__file__).resolve().parent.parent/"Data/Cryosat_Monthly/")
 
 # Estimated SIV inside the pole hole
-if True:
+if False:
     for year, months in data.items():
         for month in months:
             print(f"{year}-{month}")
