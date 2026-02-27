@@ -1,19 +1,26 @@
-# 2025-12-02
+"""
+File:       NN_ValidateModel.py
+Purpose:    Calculates total sea ice volume (SIV) [km^3] in Arctic, using the saved model from NN.py, input new TB data 
+            for a month to predict sea ice thickness (SIT) [m], and then calculate sea ice volume (SIV) [km^3] inside and outside 
+            the pole hole to get total Arctic SIV. This file is used when estimating the SIV for the whole Envisat period (2002-2012), 
+            so the pole hole is defined from 81.5° N and upwards (90° N).
+            OBS! Check that amount of hidden layers and nodes matches with the created NN model
+
+Function:   land_mask, nearest_neighbor, format_SIT_outside, synthetic_tracks, format_SIC, calc_SIC_mean, cell_area, volume
+
+Other:      Created by Thea Jonsson 2025-12-02
+"""
 
 import os
 from pathlib import Path
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import format_data as fd 
-from cartoplot import cartoplot, multi_cartoplot
+from cartoplot import cartoplot
 from ll_xy import lonlat_to_xy
-from sklearn.metrics import mean_squared_error
-from scipy.stats import linregress
 from scipy.spatial import KDTree
 import netCDF4 as nc
 from scipy.ndimage import distance_transform_edt
@@ -283,8 +290,7 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     start_time = time.time()
 
     model = Model()
-    #NN_model = torch.load(str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth")) 
-    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h2n4/NN_Model.pth")
+    NN_model = torch.load(str(Path(__file__).resolve().parent/"Results/NN_model/NN_Model.pth")) 
     model.load_state_dict(NN_model["model_state_dict"])
     scaler = NN_model["scaler"]
 
@@ -350,72 +356,6 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
     y_eval_mean = np.array(y_eval_all.mean(axis=1))
 
-    # SSM/I
-    if False:
-        folder_path_SSMI = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMI/{year}/{month}/")
-        files_SSMI = sorted([f for f in os.listdir(folder_path_SSMI) if f[0].isalnum()])
-
-        y_eval_all = pd.DataFrame()
-        day = 1
-        for file_SSMI in files_SSMI:
-            index = 0
-            vh = [0, 1, 2, 3, 4]
-        
-            for j in range(len(vh)):
-                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSM_I(x, y, os.path.join(folder_path_SSMI,file_SSMI), group_SSM_I, vh[j], lons_valid, lats_valid, land_mask_data, debug=False)
-
-                df_TB_SSMIS[columns[index]] = TB_freq     
-                index += 1
-
-            Test_TB = df_TB_SSMIS[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
-            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values 
-
-            Test_TB = scaler.fit_transform(Test_TB)
-            Test_TB = torch.FloatTensor(Test_TB)
-
-            with torch.no_grad():
-                y_eval = model.forward(Test_TB)
-            
-            y_eval_all[f"Day_{day}"] = y_eval.squeeze().numpy()
-            print(f"Day_{day} done")
-            day += 1
-        y_eval_mean = np.array(y_eval_all.mean(axis=1))
-
-    # SSMIS
-    if False:
-        folder_path_SSMIS = str(Path(__file__).resolve().parent.parent/f"Data/TB_SSMIS/{year}/{month}/")
-        files_SSMIS = sorted([f for f in os.listdir(folder_path_SSMIS) if f[0].isalnum()])
-
-        y_eval_all = pd.DataFrame()
-        day = 1
-        for file_SSMIS in files_SSMIS:
-            index = 0
-            tb_order = [
-                ("scene_env1", 1),   # 19V
-                ("scene_env1", 0),   # 19H
-                ("scene_env1", 2),   # 22V
-                ("scene_env2", 1),   # 37V
-                ("scene_env2", 0)    # 37H
-            ]
-            for group, channel in tb_order:                
-                x_TB, y_TB, TB, TB_freq, nearest_TB_coords = fd.format_SSMIS(x, y, os.path.join(folder_path_SSMIS,file_SSMIS), group, channel, lons_valid, lats_valid, land_mask_data, debug=False)
-                df_TB_SSMIS[columns[index]] = TB_freq     
-                index += 1
-
-            Test_TB = df_TB_SSMIS[["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37"]].values 
-            TB_xy =  df_TB_SSMIS[["X_SIT","Y_SIT"]].values 
-
-            Test_TB = scaler.fit_transform(Test_TB)
-            Test_TB = torch.FloatTensor(Test_TB)
-
-            with torch.no_grad():
-                y_eval = model.forward(Test_TB)
-            
-            y_eval_all[f"Day_{day}"] = y_eval.squeeze().numpy()
-            print(f"Day_{day} done")
-            day += 1
-        y_eval_mean = np.array(y_eval_all.mean(axis=1))
-
     df = pd.DataFrame({
         "PredSIT": y_eval_mean,
         "X": TB_xy[:,0],
@@ -445,9 +385,6 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     V_tot_in = np.nansum(V_cell_in) 
     print(f"Volume inside the pole hole: {V_tot_in} [km^3]")
 
-    end_time = time.time()
-    print(f"Elapsed time: {end_time - start_time}")
-
     
 
     # Volume outside of the pole hole
@@ -472,15 +409,24 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
 
 
+    end_time = time.time()
+    print(f"Elapsed time: {end_time - start_time}")
+
+
+
     # Plot SIV both inside and outside pole hole using cartoplot
     if debug:
         x_SIC = x_SIC[indices]
         y_SIC = y_SIC[indices]
 
-        name = f"{year}{month}_carto"
-        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name)
+        name_SIT = f"{year}{month}_cartoSIT"
+        name_SIV = f"{year}{month}_cartoSIV"
+        cartoplot([X, x_SIC],[Y, y_SIC],[SIT_pred, SIT], cbar_label="Sea ice thickness [m]", save_name=name_SIT)
+        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name_SIV)
 
     return V_total
+
+
 
 
 
@@ -507,13 +453,7 @@ lons_valid, lats_valid, land_mask_data = land_mask()
 for year, months in data.items():
     for month in months:
         print(f"{year}-{month}")
-        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data)
+        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False)        # Debug: Plot SIT and SIV with cartoplot
 
-        #with open(str(Path(__file__).resolve().parent/"Total_volume_pred_EnvPeriod.txt"), "a") as file:
-        #        file.write(f"{year}-{month}: {V_total}\n")
-
-        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/NNMethod_EnvPeriod.txt"), "a") as file:
-        #    file.write(f"{year}-{month}: {V_total}\n")
-
-        #with open(str(Path(__file__).resolve().parent/"Results/Predicted_SIV_EnvPeriod/Total_volume_EnvPeriod.txt"), "a") as file:
-        #    file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/NNMethod_EnvPeriod.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")

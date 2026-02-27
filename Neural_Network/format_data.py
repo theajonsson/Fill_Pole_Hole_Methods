@@ -3,7 +3,7 @@ File:       format_data.py
 Purpose:    Provides functions for formating data and performance of necessary steps for further analysis
             Uses file ll_xy.py
 
-Function:   nearest_neighbor, land_mask, format_SIT, format_SSM_I, format_SSMIS, format_SIC
+Function:   nearest_neighbor, land_mask, format_SIT, format_SSM_I, format_SSMIS, split_tracks
 
 Other:      Created by Thea Jonsson 2025-08-28
 """
@@ -97,7 +97,7 @@ Input:      file_paths (string)
 Return:     x_SIT, y_SIT (float)
             SIT (float): sea ice thickness (SIT), unit: [m]
 """
-def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
+def format_SIT(file_paths, lat_level=66, hemisphere="n"):
 
     dataset = nc.Dataset(file_paths, "r", format="NETCDF4")
     lon_SIT = np.array(dataset["lon"]).flatten()
@@ -105,32 +105,6 @@ def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
     SIT = dataset["sea_ice_thickness"][:].filled(np.nan).flatten()     # NaN instead of _FillValue=9.969209968386869e+36
     dataset.close()
 
-    """
-    x_SIT,y_SIT = lonlat_to_xy(lat_SIT, lon_SIT, hemisphere)
-    dx = np.diff(x_SIT)
-    dy = np.diff(y_SIT)
-    distances = np.sqrt(dx**2 + dy**2)
-    dist_cum = np.insert(np.cumsum(distances), 0, 0)
-
-    mask = (dist_cum >= 0) & (dist_cum <= 50000)  
-    dist_sub = dist_cum[mask]
-    dist_plot = dist_sub - dist_sub[0]
-    SIT_sub = SIT[mask]
-
-    plt.figure(figsize=(10,5))
-    plt.plot(dist_plot/1000, SIT_sub, "-b")
-    plt.xlabel("Distance along track [km]")
-    plt.ylabel("Sea ice thickness [m]")
-    plt.ylim(0,10)
-    plt.xlim(0,50)
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig("/Users/theajonsson/Desktop/EnvisatSIT_200703_1750_1800.png", dpi=300, bbox_inches="tight")
-    plt.show()
-    breakpoint()
-    """
-
-    #mask = (lat_SIT >= lat_level) & (SIT >= 0)
     mask = (lat_SIT >= lat_level) & ((SIT >= 0) | np.isnan(SIT))
     lat_SIT = lat_SIT[mask]
     lon_SIT = lon_SIT[mask]
@@ -147,12 +121,7 @@ def format_SIT(file_paths, lat_level=81.5, hemisphere="n"):
     x_SIT = nearest_coords[:,0][mask]
     y_SIT = nearest_coords[:,1][mask]
     SIT = SIT[mask]
-
     return x_SIT, y_SIT, SIT
-
-
-
-
 
 
 
@@ -215,12 +184,9 @@ def format_SSM_I(x_SIT, y_SIT, file_paths, group, channel, lons_valid, lats_vali
         plt.xlabel("x")
         plt.ylabel("y")
         plt.axis("equal")
-        #plt.savefig("/Users/theajonsson/Desktop/nearestTB.png", dpi=300, bbox_inches="tight")
         plt.show()
 
     return x_TB, y_TB, TB, TB_near, nearest_TB_coords
-
-
 
 
 
@@ -264,14 +230,6 @@ def format_SSMIS(x_SIT, y_SIT, file_paths, group, channel, lons_valid, lats_vali
     TB = TB[mask]
 
     x_TB,y_TB = lonlat_to_xy(lat_TB, lon_TB, hemisphere)
-    #x_valid,y_valid = lonlat_to_xy(lats_valid, lons_valid, hemisphere)
-
-    #distances, nearest_coords, land_mask_data = nearest_neighbor(x_TB, y_TB, x_valid, y_valid, land_mask_data)
-
-    #mask = distances < 10000        
-    #x_TB = nearest_coords[:,0][mask]
-    #y_TB = nearest_coords[:,1][mask]
-    #TB = TB[mask]
 
     distances, nearest_TB_coords, TB_near = nearest_neighbor(x_SIT, y_SIT, x_TB, y_TB, TB)
 
@@ -293,50 +251,20 @@ def format_SSMIS(x_SIT, y_SIT, file_paths, group, channel, lons_valid, lats_vali
         plt.xlabel("x")
         plt.ylabel("y")
         plt.axis("equal")
-        name = f"/Users/theajonsson/Desktop/nearestTB_{group}_{channel}.png"
-        plt.savefig(name, dpi=300, bbox_inches="tight")
+        plt.show()
 
     return x_TB, y_TB, TB, TB_near, nearest_TB_coords
 
 
 
-
-"""
-Function:   format_SIC
-Purpose:    Read NetCDF file, loads data (lon, lat, SIC) and replaces fillvalue with NaN, 
-            filter all data to save data from lat_level to max_lat_level and removes NaN, 
-            converts lon/lat into x/y coordinates 
-
-Input:      file_paths (string)
-Return:     x_SIC, y_SIC (float)
-            SIC (float): sea ice concentration (SIC), unit: [%]
-"""
-"""
-def format_SIC(file_paths, lat_level=81.5, max_lat_level = 88, hemisphere="n"):
-    dataset = nc.Dataset(file_paths, "r", format="NETCDF4")
-    lat_SIC = np.array(dataset["lat"]).flatten()
-    lon_SIC = np.array(dataset["lon"]).flatten()
-    SIC = dataset["ice_conc"][:].filled(np.nan).flatten() 
-    dataset.close()
-
-    mask = (lat_SIC >= lat_level) & (lat_SIC <= max_lat_level)
-    lat_SIC = lat_SIC[mask]
-    lon_SIC = lon_SIC[mask]
-    SIC = SIC[mask]
-
-    x_SIC,y_SIC = lonlat_to_xy(lat_SIC, lon_SIC, hemisphere)
-
-    return x_SIC, y_SIC, SIC
-"""
-
 """
 Function:   split_tracks
-Purpose:    
+Purpose:    Distance based segementation of Envisat satellite track, and averaged the SIT values inside each segment
 
-Input:      
-Return:     
+Input:      df (dataframe): x, y coordinates from Envisat where there is a SIT value, SIT values, TB values
+Return:     df_seg (dataframe): segemented data that consists of averaged SIT on original coordinates
 """
-def split_tracks(df, distance_segment = 50000):
+def split_tracks(df, distance_segment = 80000):
 
   # Calculate distance between data points
   x = df["X_SIT"].values
@@ -382,24 +310,14 @@ def split_tracks(df, distance_segment = 50000):
           temp[i].append(row[i])
       
       cumulative_distance += distances[idx]
-
-      #print(cumulative_distance)
-      #save_SIT.append(row["SIT"])
     
       if (idx + 1) > (df.shape[0]-1):
-          next_dist = 0                   # Om sista tal, nästa distans är 0
+          next_dist = 0                   # If last positioned value, next distance is zero
       else:
-          next_dist = distances[idx+1]    # Nästa distans
+          next_dist = distances[idx+1]   
       
       if (cumulative_distance + next_dist) >= distance_segment:
           #print(f"Segment({seg}) is: {cumulative_distance * 0.001:.2f} [km] and contains {len(temp['SIT'])} values")
-          
-          #dist = np.linspace(0, cumulative_distance, num=len(temp["SIT"]))
-          #plt.plot(dist, save_SIT) 
-          #plt.xlabel("Along-track distance [m]") 
-          #plt.ylabel("Sea ice thickness [m]")
-          #plt.show()
-          #breakpoint()
 
           # Remove segments where more than x% of values are NaN
           if np.isnan(temp["SIT"]).sum() * (100 / len(temp["SIT"])) >= 50:
@@ -436,7 +354,6 @@ def split_tracks(df, distance_segment = 50000):
       #print(f"Segment({seg}) is: {cumulative_distance * 0.001:.2f} [km] and contains {len(temp['SIT'])} values")
 
       for i in ["TB_V19", "TB_H19", "TB_V22", "TB_V37", "TB_H37", "SIT"]:
-          #result[i].append(np.nanmean(temp[i]))
           mean = np.nanmean(temp[i])
           df_temp[i] = np.full(len(temp[i]), mean)
       df_temp["X_SIT"] = temp["X_SIT"]

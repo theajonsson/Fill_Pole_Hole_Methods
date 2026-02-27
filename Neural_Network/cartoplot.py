@@ -15,6 +15,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import cartopy
 import cartopy.crs as ccrs
+import numpy as np
+import matplotlib.lines as mlines
 
 
 
@@ -52,7 +54,7 @@ def make_ax(fig, ax, data,
     m = ax.scatter(data[0], data[1], c=data[2],
                     s = 0.1,
                     transform=ccrs.epsg('3408'),
-                    zorder=0, cmap="viridis_r")#,vmin=0, vmax=6)
+                    zorder=0, cmap="viridis_r") #,vmin=0, vmax=6)
     ax.set_title(title)
 
     cb = plt.colorbar(m, cax=ax_cb)
@@ -122,9 +124,9 @@ def multi_cartoplot(coords_1, coords_2, data,
 
         
     if  save_name:
-        dir = "/Users/theajonsson/Desktop/"
+        dir = str(Path(__file__).resolve().parent/"Results/")
         save_format = ".png"
-        fig.savefig(dir+save_name+save_format, dpi=300, bbox_inches="tight")
+        fig.savefig(os.path.join(dir,save_name+save_format), dpi=300, bbox_inches="tight")
     else:    
         plt.show()
 
@@ -187,8 +189,14 @@ def cartoplot(coords_1, coords_2, data,
         m = ax.scatter(coords_1[i], coords_2[i], c=data[i],
                         s = dot_size,
                         transform=ccrs.epsg('3408'),
-                        zorder=0, cmap="viridis_r", vmin=0)#, vmax=7)   #cmap="bwr", vmin=-0.10, vmax=0.10)
-    ax.set_title(title)
+                        zorder=100, cmap="jet", vmin=0, vmax=7)      #Inter_calibration_SSMI_SSMIS.py   cmap="bwr", vmin=-0.10, vmax=0.10
+    #ax.set_title(title)
+
+    lon = np.linspace(-180, 180, 361)
+    lat = np.full_like(lon, 81.5)
+    ax.plot(lon, lat,transform=ccrs.PlateCarree(),color="#FF00FF",linewidth=2,zorder=10000)
+    gridline_env = mlines.Line2D([], [], color="#FF00FF", linewidth=2, label="Envisat pole hole\n(81.5$^\circ$N)")
+    ax.legend(handles=[gridline_env], loc="upper right")
 
     cb = plt.colorbar(m, cax=ax_cb)
     cb.set_label(cbar_label)
@@ -196,7 +204,7 @@ def cartoplot(coords_1, coords_2, data,
     ax_cb.yaxis.set_tick_params(labelright=True)
         
     if  save_name:
-        dir = str(Path(__file__).resolve().parent/"Results/Predicted_SIV_EnvPeriod/")
+        dir = str(Path(__file__).resolve().parent/"Results/")
         save_format = ".png"
         fig.savefig(os.path.join(dir,save_name+save_format), dpi=300, bbox_inches="tight")
     else:    

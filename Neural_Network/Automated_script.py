@@ -5,7 +5,7 @@ Purpose:    To automatically train NN by using NN_automated() in NN.py,
             Optional: add one/more hidden layer(s), but then NN.py must also be altered! 
             the result of this is later used in hidden_layers_vs_nodes.py
 
-Function:   synthetic_tracks, run, 
+Function:   synthetic_tracks, run 
 
 Other:      Created by Thea Jonsson 2025-09-26
 """
@@ -41,9 +41,6 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.hidden1 = nn.Linear(in_features, n_hidden)
         self.hidden2 = nn.Linear(n_hidden, n_hidden)
-        self.hidden3 = nn.Linear(n_hidden, n_hidden)
-        self.hidden4 = nn.Linear(n_hidden, n_hidden)
-        self.hidden5 = nn.Linear(n_hidden, n_hidden)
         self.activation = nn.Tanh()                       
         self.output = nn.Linear(n_hidden, n_outputs)    
 
@@ -51,24 +48,21 @@ class Model(nn.Module):
         x = self.hidden1(x)
         x = self.activation(x)
         x = self.hidden2(x)
-        x = self.activation(x)
-        x = self.hidden3(x)
-        x = self.activation(x)
-        x = self.hidden4(x)
-        x = self.activation(x)
-        x = self.hidden5(x)
-        x = self.activation(x)
-        x = self.output(x)          
+        x = self.activation(x)        
         return x
 """
 Adding one/more hidden layer(s) by:
 self.hidden1 = nn.Linear(in_features, n_hidden)
 self.hidden2 = nn.Linear(n_hidden, n_hidden)
+...
 
 x = self.hidden1(x)
 x = self.activation(x)
 x = self.hidden2(x)
 x = self.activation(x)
+...
+
+OBS! Must match format in NN.py or vice versa! 
 """
 
 
@@ -119,6 +113,7 @@ def synthetic_tracks(lat_level=81.5, max_lat_level = 88, hemisphere="n"):
 """
 Function:   run
 Purpose:    Predicts SIT inside the pole hole (using synthetic satellite tracks) with TB data as input to the NN model
+            OBS! Check that amount of hidden layers and nodes matches with NN.py
 
 Input:      n_hidden (int): number of hidden nodes
             x,y (float): x/y synthetic tracks coordinates
@@ -199,6 +194,8 @@ def run(n_hidden, x, y, tree, SIT_CS2, lons_valid, lats_valid, land_mask_data):
 
 
 
+
+
 if __name__ == "__main__":
 
     x,y = synthetic_tracks()
@@ -220,3 +217,4 @@ if __name__ == "__main__":
         
         with open(str(Path(__file__).resolve().parent/"Evaluation_terms.txt"), "a") as file:
             file.write("\n")
+        # The data from this file should be saved in a respective file before rerunning with another set of hidden layers

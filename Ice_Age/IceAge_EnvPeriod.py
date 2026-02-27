@@ -1,9 +1,9 @@
 """
 File:       IceAge_EnvPeriod.py
-Purpose:    Calculate total sea ice volume (SIV) [km^3] in Arctic during the operatinal time period of Envisat.
-            First by calculate inside and then outside the pole hole, where the volume inside the pole hole is based on 
-            average sea ice thickness (SIT) [m] for where different sea ice types exists. 
-            The ice types regards first-year ice (FYI), multi-year ice (MYI) and ambiguous ice type. 
+Purpose:    Calculate total sea ice volume (SIV) [km^3] in Arctic. First by calculate inside and then outside the pole hole, 
+            where the volume inside the pole hole is based on average sea ice thickness (SIT) [m] for where different sea ice types exists. 
+            The ice types regards first-year ice (FYI), multi-year ice (MYI) and ambiguous ice type. This file is used when estimating the SIV 
+            for the whole Envisat period (2002-2012), so the pole hole is defined from 81.5° N and upwards (90° N).
 
 Function:   format_type, calc_type_mean, nearest_neighbor, land_mask, format_SIT, format_SIC, calc_SIC_mean,
             cell_area, format_SIT_outside, volume
@@ -406,7 +406,7 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     total=pd.concat([df_fyi_filtered,df_myi_filtered,amb], ignore_index=True)
     X = np.array(total["x"])
     Y = np.array(total["y"])
-    SIT = np.array(total["SIT"])
+    SIT_in = np.array(total["SIT"])
 
     # Volume for inside of the pole hole
     x_SIC, y_SIC, SIC_mean = calc_SIC_mean(year=year, month=month)
@@ -417,7 +417,7 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
     area_cell = cell_area()     
 
-    V_cell_in = ((SIT/1000)*(SIC_in/100))*area_cell
+    V_cell_in = ((SIT_in/1000)*(SIC_in/100))*area_cell
     V_cell_in[V_cell_in == 0] = np.nan
     V_tot_in = np.nansum(V_cell_in)
     print(f"Volume inside the pole hole: {V_tot_in} km^3")
@@ -427,18 +427,17 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
 
     # Volume for outside of the pole hole
-    x_SIT, y_SIT, SIT = format_SIT_outside(file_sit, lons_valid, lats_valid, land_mask_data)
-    print(f"Mean value of outside SIT: {np.nanmean(SIT)} m")
+    x_SIT, y_SIT, SIT_out = format_SIT_outside(file_sit, lons_valid, lats_valid, land_mask_data)
+    print(f"Mean value of outside SIT: {np.nanmean(SIT_out)} m")
 
     tree = KDTree(list(zip(x_SIC.flatten(),y_SIC.flatten()))) 
     _, indices = tree.query(list(zip(x_SIT.flatten(),y_SIT.flatten()))) 
     SIC_out = SIC_mean[indices]    # Unit: %
 
-    V_cell_out = ((SIT/1000)*(SIC_out/100))*area_cell
+    V_cell_out = ((SIT_out/1000)*(SIC_out/100))*area_cell
     V_cell_out[V_cell_out == 0] = np.nan
     V_tot_out = np.nansum(V_cell_out)
     print(f"Volume outside the pole hole: {V_tot_out} km^3")
-
 
 
     # Total volume in Arctic
@@ -452,11 +451,15 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
         x_SIC = x_SIC[indices]
         y_SIC = y_SIC[indices]
 
-        name = f"{year}{month}_carto"
-        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name)
+        name_SIT = f"{year}{month}_cartoSIT"
+        name_SIV = f"{year}{month}_cartoSIV"
+        cartoplot([X, x_SIC],[Y, y_SIC],[SIT_in, SIT_out], cbar_label="Sea ice thickness [m]", save_name=name_SIT)
+        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name_SIV)
 
 
     return V_total
+
+
 
 
 
@@ -483,7 +486,7 @@ lons_valid, lats_valid, land_mask_data = land_mask()
 for year, months in data.items():
     for month in months:
         print(f"{year}-{month}")
-        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data)
+        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False)      # Debug: Plot SIT and SIV with cartoplot
 
-        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/IceAgeMethod_EnvPeriod.txt"), "a") as file:
-        #    file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/IceAgeMethod_EnvPeriod.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")

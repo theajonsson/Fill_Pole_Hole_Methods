@@ -281,6 +281,8 @@ def volume_CS2(year, month, debug=False):
 
 
 
+
+
 data = {
     "2010": ["11", "12"],
     "2011": ["01", "02", "03", "04", "10", "11", "12"],
@@ -290,63 +292,60 @@ folder_SIT = str(Path(__file__).resolve().parent.parent/"Data/Envisat_Monthly/")
 folder_SIT_CS2 = str(Path(__file__).resolve().parent.parent/"Data/Cryosat_Monthly/")
 
 # Calculates predicetd SIV inside the pole hole
-if False:
-    for year, months in data.items():
-        for month in months:
-            print(f"{year}-{month}")
-            V_total = volume(year, month)
+for year, months in data.items():
+    for month in months:
+        print(f"{year}-{month}")
+        V_total = volume(year, month)
 
-            with open(str(Path(__file__).resolve().parent/"Total_volume_pred.txt"), "a") as file:
-                file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent/"Results/Total_volume_pred.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")
 
 # Calculates SIV for CS-2 inside the pole hole
-if False:
-    for year, months in data.items():
-        for month in months:
-            print(f"{year}-{month}")
-            V_total = volume_CS2(year, month)
+for year, months in data.items():
+    for month in months:
+        print(f"{year}-{month}")
+        V_total = volume_CS2(year, month)
 
-            with open(str(Path(__file__).resolve().parent/"Total_volume_cs2.txt"), "a") as file:
-                file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent/"Results/Total_volume_cs2.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")
             
 
 
-# Plot predicted SIV against CS2 SIV
-if True:
-    with open(str(Path(__file__).resolve().parent/"Total_volume_pred.txt"), "r") as f:
-        pred_values = np.array([float(line.strip().split(":")[1]) for line in f])
+# Plot predicted SIV against CS2 SI
+with open(str(Path(__file__).resolve().parent/"Results/Total_volume_pred.txt"), "r") as f:
+    pred_values = np.array([float(line.strip().split(":")[1]) for line in f])
 
-    with open(str(Path(__file__).resolve().parent/"Total_volume_cs2.txt"), "r") as f:
-        cs2_values = np.array([float(line.strip().split(":")[1]) for line in f])
+with open(str(Path(__file__).resolve().parent/"Results/Total_volume_cs2.txt"), "r") as f:
+    cs2_values = np.array([float(line.strip().split(":")[1]) for line in f])
 
-    pred_1011 = pred_values[0:6]
-    pred_1112 = pred_values[6:12]
-    cs2_1011 = cs2_values[0:6]
-    cs2_1112 = cs2_values[6:12]
+pred_1011 = pred_values[0:6]
+pred_1112 = pred_values[6:12]
+cs2_1011 = cs2_values[0:6]
+cs2_1112 = cs2_values[6:12]
 
-    bias = np.mean(pred_values - cs2_values)
-    slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
-    print(slope)
-    r_squared = r_value**2
-    rmse = mean_squared_error(cs2_values, pred_values, squared=False)
-    mean_pred = np.nanmean(pred_values)
-    mean_cs2 = np.nanmean(cs2_values)
+bias = np.mean(pred_values - cs2_values)
+slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
+print(slope)
+r_squared = r_value**2
+rmse = mean_squared_error(cs2_values, pred_values, squared=False)
+mean_pred = np.nanmean(pred_values)
+mean_cs2 = np.nanmean(cs2_values)
 
-    plt.figure()
-    plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
-    plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
-    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
-    plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
-    plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
-    plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
+plt.figure()
+plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
+plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
+plt.scatter([], [], color='none', label=f"RMSE={rmse:.2f}\nBias={bias:.2f}\nR$^2$={r_squared:.2f}")
+plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
+plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
+plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
 
-    plt.xlabel("CS2 volume [km$^3$]")
-    plt.ylabel("Predicted volume [km$^3$]")
-    plt.xlim(0, 10000)
-    plt.ylim(0, 10000)
-    plt.grid(True)
-    plt.legend(loc="upper left", ncol=2)
-    plt.tight_layout()
-    dir = str(Path(__file__).resolve().parent/"Results/")
-    plt.savefig(os.path.join(dir,"Halo_Method.png"), dpi=300, bbox_inches="tight")
-    plt.show()
+plt.xlabel("CS2 volume [km$^3$]")
+plt.ylabel("Predicted volume [km$^3$]")
+plt.xlim(0, 10000)
+plt.ylim(0, 10000)
+plt.grid(True)
+plt.legend(loc="upper left", ncol=2)
+plt.tight_layout()
+dir = str(Path(__file__).resolve().parent/"Results/")
+plt.savefig(os.path.join(dir,"Halo_Method.png"), dpi=300, bbox_inches="tight")
+plt.show()

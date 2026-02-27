@@ -15,11 +15,7 @@ from pathlib import Path
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime
 from scipy.spatial import KDTree
-from scipy.stats import linregress
 from scipy.ndimage import distance_transform_edt
 from ll_xy import lonlat_to_xy
 from cartoplot import cartoplot
@@ -60,10 +56,6 @@ def land_mask(min_distance_km=50, lat_level=66):
     lats_valid = lats_flat[valid]
     lons_valid = lons_flat[valid]
     land_mask_data = np.full_like(lats_valid, 255, dtype=np.uint8) 
-
-    #lats_valid = lats_valid[::8]
-    #lons_valid = lons_valid[::8]
-    #land_mask_data = land_mask_data[::8]
 
     return lons_valid, lats_valid, land_mask_data
 
@@ -148,7 +140,7 @@ def format_SIT_outside(file_path, lons_valid, lats_valid, land_mask_data, lat_le
 
     distances, nearest_coords, land_mask_data = nearest_neighbor(x_SIT, y_SIT, x_valid, y_valid, land_mask_data)
 
-    mask = distances < 10000        # If coord moved 10km it was probably on land and will be removed
+    mask = distances < 10000        # If coordinate was moved 10km, it was probably on land and will be removed
     x = nearest_coords[:,0][mask]
     y = nearest_coords[:,1][mask]
     SIT = SIT[mask]
@@ -269,7 +261,7 @@ def cell_area():
     yc = dataset["yc"][:]
     dx = np.diff(xc)
     dy = np.diff(yc)
-    area_cell = abs(dx.mean()) * abs(dy.mean()) # Unit: km^2
+    area_cell = abs(dx.mean()) * abs(dy.mean()) 
     return area_cell
 
 
@@ -298,11 +290,11 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
     _, indices = tree.query(list(zip(X.flatten(),Y.flatten()))) 
     SIC_in = SIC_mean[indices]    # Unit: %
 
-    SIT = np.full(len(indices), average_SIT)    # Unit: m
+    SIT_in = np.full(len(indices), average_SIT)    # Unit: m
 
     area_cell = cell_area()     # Unit: km^2
 
-    V_cell_in = ((SIT/1000)*(SIC_in/100))*area_cell
+    V_cell_in = ((SIT_in/1000)*(SIC_in/100))*area_cell
     V_cell_in[V_cell_in == 0] = np.nan
     V_tot_in = np.nansum(V_cell_in)
     print(f"Volume inside the pole hole: {V_tot_in} km^3")
@@ -310,15 +302,15 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
 
 
     # Volume outside of the pole hole
-    x_SIT, y_SIT, SIT = format_SIT_outside(file_sit, lons_valid, lats_valid, land_mask_data)
-    print(f"Mean value of outside SIT: {np.nanmean(SIT)} m")
+    x_SIT, y_SIT, SIT_out = format_SIT_outside(file_sit, lons_valid, lats_valid, land_mask_data)
+    print(f"Mean value of outside SIT: {np.nanmean(SIT_out)} m")
 
 
     tree = KDTree(list(zip(x_SIC.flatten(),y_SIC.flatten()))) 
     _, indices = tree.query(list(zip(x_SIT.flatten(),y_SIT.flatten()))) 
     SIC_out = SIC_mean[indices]   
 
-    V_cell_out = ((SIT/1000)*(SIC_out/100))*area_cell
+    V_cell_out = ((SIT_out/1000)*(SIC_out/100))*area_cell
     V_cell_out[V_cell_out == 0] = np.nan
     V_tot_out = np.nansum(V_cell_out)
     print(f"Volume outside the pole hole: {V_tot_out} km^3")
@@ -336,8 +328,10 @@ def volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False):
         x_SIC = x_SIC[indices]
         y_SIC = y_SIC[indices]
 
-        name = f"{year}{month}_carto"
-        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name)
+        name_SIT = f"{year}{month}_cartoSIT"
+        name_SIV = f"{year}{month}_cartoSIV"
+        cartoplot([X, x_SIC],[Y, y_SIC],[SIT_in, SIT_out], cbar_label="Sea ice thickness [m]", save_name=name_SIT)
+        cartoplot([X, x_SIC],[Y, y_SIC],[V_cell_in, V_cell_out], cbar_label="Sea ice volume [km$^3$]", save_name=name_SIV)
 
     return V_total
 
@@ -368,7 +362,7 @@ lons_valid, lats_valid, land_mask_data = land_mask()
 for year, months in data.items():
     for month in months:
         print(f"{year}-{month}")
-        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data)
+        V_total = volume(year, month, lons_valid, lats_valid, land_mask_data, debug=False)      # Debug: Plot SIT and SIV with cartoplot
 
-        #with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/HaloMethod_EnvPeriod.txt"), "a") as file:
-        #    file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent.parent/"Estimating_SIV/HaloMethod_EnvPeriod.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")

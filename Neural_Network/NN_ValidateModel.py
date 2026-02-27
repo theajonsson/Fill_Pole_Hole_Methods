@@ -1,9 +1,11 @@
 """
-File:       NN_ValidateModel_AlongTrack.py
-Purpose:    Use the saved model from NN.py, input new TB data for a month to predict sea ice thickness (SIT) [m],
-            calculate sea ice volume (SIV) [km^3] inside and outside the pole hole to get total Arctic SIV
+File:       NN_ValidateModel.py
+Purpose:    Use the saved model from NN.py, input new TB data for a month to predict sea ice thickness (SIT) [m] and then
+            calculate sea ice volume (SIV) [km^3] inside pole hole. This file is used when comparing the three different methods, 
+            so the pole hole is defined from 81.5° N to 88° N.
+            OBS! Check that amount of hidden layers and nodes matches with the created NN model
 
-Function:   synthetic_tracks, cell_area, format_SIT_outside, polehole
+Function:   synthetic_tracks, format_SIC, calc_SIC_mean, cell_area, polehole, format_CS2_SIT, volume_CS2
 
 Other:      Created by Thea Jonsson 2025-09-26
 """
@@ -13,12 +15,11 @@ from pathlib import Path
 import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import format_data as fd 
-from cartoplot import cartoplot, multi_cartoplot
+from cartoplot import cartoplot
 from ll_xy import lonlat_to_xy
 from sklearn.metrics import mean_squared_error
 from scipy.stats import linregress
@@ -188,9 +189,8 @@ def polehole(year, month, debug=False):
 
     start_time = time.time()
 
-    model = Model()
-    #NN_model = torch.load(str(Path(__file__).resolve().parent.parent/"Data/NN/SSMIS_1month.pth")) 
-    NN_model = torch.load("/Users/theajonsson/Desktop/2006_2007_80km/NN/h2n4/NN_Model.pth")
+    model = Model() 
+    NN_model = torch.load(str(Path(__file__).resolve().parent/"Results/NN_model/NN_Model.pth")) 
     model.load_state_dict(NN_model["model_state_dict"])
     scaler = NN_model["scaler"]
 
@@ -279,68 +279,10 @@ def polehole(year, month, debug=False):
         "X": TB_xy[:,0],
         "Y": TB_xy[:,1]
     })
-    #df.to_csv("/Users/theajonsson/Desktop/Validate_PredSIT.csv", index=False)
 
     X = df["X"].values
     Y = df["Y"].values
     SIT_pred = df["PredSIT"]
-
-    """
-    file_CS2 = os.path.join(folder_CS2, year, f"ESACCI-SEAICE-L3C-SITHICK-SIRAL_CRYOSAT2-NH25KMEASE2-{year}{month}-fv2.0.nc")
-    x_CS2, y_CS2, SIT_CS2 = fd.format_SIT(file_CS2)
-    tree = KDTree(list(zip(x_CS2.flatten(),y_CS2.flatten())))   # Gridded CS2
-
-    X = df["X"].values
-    Y = df["Y"].values
-    SIT_pred = df["PredSIT"]
-    distances, indices = tree.query(list(zip(X.flatten(),Y.flatten()))) # Swath pred SIT (syntethic tracks)
-    SIT_matched = SIT_CS2[indices]
-
-    print(f"Mean predicted SIT: {np.nanmean(SIT_pred)} m")
-    print(f"Mean predicted CS-2: {np.nanmean(SIT_matched)} m")
-
-    end_time = time.time()
-    print(f"Elapsed time: {end_time - start_time}")
-
-    # Plot histogram of CS-2 SIT and predicted SIT
-    if debug:
-        plt.figure()
-        plt.hist(SIT_matched, bins=100, color="blue", alpha=0.5 ,edgecolor="black", zorder=3, label="CS-2 SIT", range=(SIT_matched.min(), SIT_matched.max()))
-        plt.hist(SIT_pred, bins=100, color="red", edgecolor="black", zorder=1, label="Predicted SIT", range=(SIT_matched.min(), SIT_matched.max()))
-        plt.xlabel("Sea Ice Thickness [m]")
-        plt.ylabel("Amount [n]")
-        plt.legend()
-        #plt.savefig("/Users/theajonsson/Desktop/SIT_hist_2010nov.png", dpi=300, bbox_inches="tight") #
-        plt.show()
-
-    bias = np.mean(SIT_pred - SIT_matched)
-
-    slope, intercept, r_value, p_value, std_err = linregress(SIT_matched, SIT_pred)
-    r_squared = r_value**2
-
-    rmse = mean_squared_error(SIT_matched, SIT_pred, squared=False)
-
-    mean_env = np.mean(SIT_pred)
-    mean_cs2 = np.mean(SIT_matched)
-
-    # Scatter plot of CS-2 SIT (x-axis) vs pred SIT (y-axis)
-    if debug:
-        plt.figure()
-        plt.scatter(SIT_matched, SIT_pred, s=10, color="#43a2ca", alpha=0.5, label=f"Bias: {bias:.3f} \nR-squared: {r_squared:.3f} \nRMSE={rmse:.3f}")
-        plt.plot(SIT_matched, intercept + slope * SIT_matched, color="#8856a7", label="Fitted line")
-        plt.plot([0,5],[0,5], color="black", linestyle="--", label="Optimal line")
-        plt.scatter(mean_cs2, mean_env, color="#435fca", s=50, marker="x", zorder=10, label="Center of mass")
-        plt.xlabel("CS-2 SIT [m]")
-        plt.ylabel("Mean predicted SIT [m]")
-        plt.legend()
-        plt.grid(True)
-        plt.ylim(0, 5)
-        plt.xlim(0, 5)
-        save_name = f"/Users/theajonsson/Desktop/{year}{month}.png"
-        #plt.savefig(save_name, dpi=300, bbox_inches="tight")
-        plt.show()
-    """
-
 
     # Volume inside of the pole hole
     x_SIC, y_SIC, SIC_mean = calc_SIC_mean(year=year, month=month)
@@ -443,6 +385,8 @@ def volume_CS2(year, month, debug=False):
 
 
 
+
+
 data = {
     "2010": ["11", "12"],
     "2011": ["01", "02", "03", "04", "10", "11", "12"],
@@ -452,66 +396,60 @@ data = {
 folder_CS2 = str(Path(__file__).resolve().parent.parent/"Data/Cryosat_Monthly/")
 
 # Estimated SIV inside the pole hole
-if False:
-    for year, months in data.items():
-        for month in months:
-            print(f"{year}-{month}")
-            V_total = polehole(year, month)
-
-            with open(str(Path(__file__).resolve().parent/"Total_volume_pred.txt"), "a") as file:
-                file.write(f"{year}-{month}: {V_total}\n")
-            
-            #with open(str(Path(__file__).resolve().parent/"Results/Total_volume_EnvPeriod.txt"), "a") as file:
-                #file.write(f"{year}-{month}: {V_total}\n")
+for year, months in data.items():
+    for month in months:
+        print(f"{year}-{month}")
+        V_total = polehole(year, month)
+        
+        with open(str(Path(__file__).resolve().parent/"Results/Total_volume_pred.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")
 
 # Calculate SIV for CS-2 inside the pole hole
-if False:
-    for year, months in data.items():
-        for month in months:
-            print(f"{year}-{month}")
-            V_total = volume_CS2(year, month)
+for year, months in data.items():
+    for month in months:
+        print(f"{year}-{month}")
+        V_total = volume_CS2(year, month)
 
-            with open(str(Path(__file__).resolve().parent/"Total_volume_cs2.txt"), "a") as file:
-                file.write(f"{year}-{month}: {V_total}\n")
+        with open(str(Path(__file__).resolve().parent/"Results/Total_volume_cs2.txt"), "a") as file:
+            file.write(f"{year}-{month}: {V_total}\n")
 
 
 
 # Plot predicted SIV against CS2 SIV
-if False:
-    with open(str(Path(__file__).resolve().parent/"Total_volume_pred.txt"), "r") as f:
-        pred_values = np.array([float(line.strip().split(":")[1]) for line in f])
+with open(str(Path(__file__).resolve().parent/"Results/Total_volume_pred.txt"), "r") as f:
+    pred_values = np.array([float(line.strip().split(":")[1]) for line in f])
 
-    with open(str(Path(__file__).resolve().parent/"Total_volume_cs2.txt"), "r") as f:
-        cs2_values = np.array([float(line.strip().split(":")[1]) for line in f])
+with open(str(Path(__file__).resolve().parent/"Results/Total_volume_cs2.txt"), "r") as f:
+    cs2_values = np.array([float(line.strip().split(":")[1]) for line in f])
 
-    pred_1011 = pred_values[0:6]
-    pred_1112 = pred_values[6:12]
-    cs2_1011 = cs2_values[0:6]
-    cs2_1112 = cs2_values[6:12]
+pred_1011 = pred_values[0:6]
+pred_1112 = pred_values[6:12]
+cs2_1011 = cs2_values[0:6]
+cs2_1112 = cs2_values[6:12]
 
-    bias = np.mean(pred_values - cs2_values)
-    slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
-    print(slope)
-    r_squared = r_value**2
-    rmse = mean_squared_error(cs2_values, pred_values, squared=False)
-    mean_pred = np.nanmean(pred_values)
-    mean_cs2 = np.nanmean(cs2_values)
+bias = np.mean(pred_values - cs2_values)
+slope, intercept, r_value, p_value, std_err = linregress(cs2_values, pred_values)
+print(slope)
+r_squared = r_value**2
+rmse = mean_squared_error(cs2_values, pred_values, squared=False)
+mean_pred = np.nanmean(pred_values)
+mean_cs2 = np.nanmean(cs2_values)
 
-    plt.figure()
-    plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
-    plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
-    plt.scatter([], [], color='none', label=f"RMSE={rmse:.3f}\nBias={bias:.3f}\nR$^2$={r_squared:.3f}")
-    plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
-    plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
-    plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
+plt.figure()
+plt.scatter(cs2_1011, pred_1011, color="#bae4bc", s=60, label="Nov 2010 - Apr 2011")
+plt.scatter(cs2_1112, pred_1112, color="#43a2ca", s=60, label="Oct 2011 - Mar 2012")
+plt.scatter([], [], color='none', label=f"RMSE={rmse:.2f}\nBias={bias:.2f}\nR$^2$={r_squared:.2f}")
+plt.scatter(mean_cs2, mean_pred, color="#810f7c", s=30, marker="*", zorder=10, label="Center of mass")
+plt.plot(cs2_values, intercept + slope * cs2_values, color="#810f7c", alpha=0.5, label="Fitted line")
+plt.plot([0, 10000], [0, 10000], color="black", linestyle="--", label="Optimal line")
 
-    plt.xlabel("CS2 volume [km$^3$]")
-    plt.ylabel("Predicted volume [km$^3$]")
-    plt.xlim(0, 10000)
-    plt.ylim(0, 10000)
-    plt.grid(True)
-    plt.legend(loc="upper left", ncol=2)
-    plt.tight_layout()
-    dir = str(Path(__file__).resolve().parent/"Results/")
-    plt.savefig(os.path.join(dir,"NN_Method.png"), dpi=300, bbox_inches="tight")
-    plt.show()
+plt.xlabel("CS2 volume [km$^3$]")
+plt.ylabel("Predicted volume [km$^3$]")
+plt.xlim(0, 10000)
+plt.ylim(0, 10000)
+plt.grid(True)
+plt.legend(loc="upper left", ncol=2)
+plt.tight_layout()
+dir = str(Path(__file__).resolve().parent/"Results/")
+plt.savefig(os.path.join(dir,"NN_Method.png"), dpi=300, bbox_inches="tight")
+plt.show()

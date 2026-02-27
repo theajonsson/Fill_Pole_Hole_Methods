@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import cartopy
 import cartopy.crs as ccrs
+import numpy as np
+import matplotlib.lines as mlines
 
 
 
@@ -74,8 +76,13 @@ def cartoplot(coords_1, coords_2, data,
         m = ax.scatter(coords_1[i], coords_2[i], c=data[i],
                         s = dot_size,
                         transform=ccrs.epsg('3408'),
-                        zorder=100, cmap="viridis_r", vmin=0)#, vmax=7)
-    #ax.set_title(title)
+                        zorder=100, cmap="jet", vmin=0, vmax=7)
+    
+    lon = np.linspace(-180, 180, 361)
+    lat = np.full_like(lon, 81.5)
+    ax.plot(lon, lat,transform=ccrs.PlateCarree(),color="#FF00FF",linewidth=2,zorder=10000)
+    gridline_env = mlines.Line2D([], [], color="#FF00FF", linewidth=2, label="Envisat pole hole\n(81.5$^\circ$N)")
+    ax.legend(handles=[gridline_env], loc="upper right")
 
     cb = plt.colorbar(m, cax=ax_cb)
     cb.set_label(cbar_label)

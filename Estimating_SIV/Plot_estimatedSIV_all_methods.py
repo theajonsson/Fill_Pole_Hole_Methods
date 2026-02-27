@@ -1,4 +1,12 @@
-# 2025-11-13
+"""
+File:       Plot_estimatedSIV_all_methods.py
+Purpose:    Create plots for total estimated sea ice volume(SIV) [km^3] in Envisat era (2002-2012),
+            with all thre methods. Plot of interanual change in each winter months (October-April).
+
+Function:   read_file, split_by_season, split_by_month, calculate_slopes, plot_months
+
+Other:      Created by Thea Jonsson 2025-11-13
+"""
 
 import os
 from pathlib import Path
@@ -13,8 +21,14 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 
+"""
+Function:   read_file
+Purpose:    Read text file containing paired dates and values, seperated into list of dates respective value
 
-
+Input:      file_path (string)
+Return:     dates (list of string)
+            np.array(values) (list of float)
+"""
 def read_file(file_path):
     dates = []
     values = []
@@ -25,6 +39,15 @@ def read_file(file_path):
             values.append(float(value))
     return dates, np.array(values)
 
+
+
+"""
+Function:   split_by_season
+Purpose:    Groups monthly data and splits it into seasons (Oct - Apr)
+
+Input:      dates, values (list of string and float)
+Return:     split_dates, split_values (list)
+"""
 def split_by_season(dates, values):
     split_dates = []
     split_values = []
@@ -54,6 +77,13 @@ def split_by_season(dates, values):
 
 
 
+"""
+Function:   split_by_month
+Purpose:    Groups data by month (Oct - Apr)
+
+Input:      dates, values (list of string and float)
+Return:     month_groups (dict)
+"""
 def split_by_month(dates, values):
     month_groups = {m: {"dates": [], "values": []} for m in ["10","11","12","01","02","03","04"]}
 
@@ -66,6 +96,15 @@ def split_by_month(dates, values):
 
     return month_groups
 
+
+
+"""
+Function:   calculate_slopes
+Purpose:    Calculates linear trend (slope) for each month using linear regression
+
+Input:      month_groups (dict)
+Return:     slopes (dict)
+"""
 def calculate_slopes(month_groups):
     slopes = {}
         
@@ -87,7 +126,16 @@ def calculate_slopes(month_groups):
 
     return slopes
 
-def plot_months(month_groups):
+
+
+"""
+Function:   calculate_slopes
+Purpose:    Calculates linear trend (slope) for each month using linear regression
+
+Input:      month_groups (dict)
+Return:     slopes (dict)
+"""
+def plot_months(month_groups, save_name=None):
     month_names = {
     "10": "Oct",
     "11": "Nov",
@@ -130,7 +178,14 @@ def plot_months(month_groups):
     ax.legend(loc="center left", bbox_to_anchor=(1.0, 0.5))
     plt.grid(True)
     plt.tight_layout()
+
+    if save_name:
+        output_dir = str(Path(__file__).resolve().parent/"Results/")
+        plt.savefig(os.path.join(output_dir, f"{save_name}.png"), dpi=300, bbox_inches="tight")
+
     plt.show()
+
+
 
 
 
@@ -141,101 +196,93 @@ nn_file = str(Path(__file__).resolve().parent/"NNMethod_EnvPeriod.txt")
 
 
 # CREATE PLOT FOR ESTIMATED SIV FOR ENVISTA PERIOD (2002-2012)
-if False:
-    halo_dates, halo_values = read_file(halo_file)
-    type_dates, type_values = read_file(type_file)
-    nn_dates, nn_values = read_file(nn_file)
+halo_dates, halo_values = read_file(halo_file)
+type_dates, type_values = read_file(type_file)
+nn_dates, nn_values = read_file(nn_file)
 
-    halo_split_dates, halo_split_values = split_by_season(halo_dates, halo_values)
-    type_split_dates, type_split_values = split_by_season(type_dates, type_values)
-    nn_split_dates, nn_split_values = split_by_season(nn_dates, nn_values)
+halo_split_dates, halo_split_values = split_by_season(halo_dates, halo_values)
+type_split_dates, type_split_values = split_by_season(type_dates, type_values)
+nn_split_dates, nn_split_values = split_by_season(nn_dates, nn_values)
 
+plt.figure(figsize=(10, 6))
 
-    plt.figure(figsize=(10, 6))
+for i in range(len(halo_split_dates)):
+    plt.plot(halo_split_dates[i], halo_split_values[i], label="Halo method" if i == 0 else "", 
+                color="#276CF5", marker="o", markersize=6.5, linestyle="-", linewidth=3.5)
 
-    for i in range(len(halo_split_dates)):
-        plt.plot(halo_split_dates[i], halo_split_values[i], label="Halo method" if i == 0 else "", 
-                 color="#276CF5", marker="o", markersize=6.5, linestyle="-", linewidth=3.5)
+for i in range(len(type_split_dates)):
+    plt.plot(type_split_dates[i], type_split_values[i], label="Ice age method" if i == 0 else "", 
+                color="#F54927",marker="v", markersize=5,linestyle="--", linewidth=2)
 
-    for i in range(len(type_split_dates)):
-        plt.plot(type_split_dates[i], type_split_values[i], label="Ice age method" if i == 0 else "", 
-                 color="#F54927",marker="v", markersize=5,linestyle="--", linewidth=2)
-    
-    for i in range(len(nn_split_dates)):
-        plt.plot(nn_split_dates[i], nn_split_values[i], label="Neural network method" if i == 0 else "", 
-                 color="#27F5B0", marker="p", markersize=5, linestyle="-.")
+for i in range(len(nn_split_dates)):
+    plt.plot(nn_split_dates[i], nn_split_values[i], label="Neural network method" if i == 0 else "", 
+                color="#27F5B0", marker="p", markersize=5, linestyle="-.")
 
-    plt.xlabel("Year")
-    plt.ylabel("Sea ice volume [km$^3$]")
-    plt.xlim([datetime(2002, 1, 1), datetime(2012, 12, 31)])
-    plt.gca().xaxis.set_major_locator(mdates.YearLocator())             # Yearly thicks, diplayed in the beginning of each year
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y"))     # Display text of year 
-    plt.gca().xaxis.set_minor_locator(mdates.MonthLocator())            # Monthly ticks 
-    plt.gca().tick_params(which="minor", axis="x", length=5, width=0.5, color="gray")
-    plt.ylim(0,20000)
-    plt.xticks(rotation=45)
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-    dir = str(Path(__file__).resolve().parent/"Results/")
-    plt.savefig(os.path.join(dir,"EstimatingSIV_EnvPeriod.png"), dpi=300, bbox_inches="tight")
-    plt.show()
+plt.xlabel("Year", fontsize=14)
+plt.ylabel("Sea ice volume [km$^3$]", fontsize=14)
+plt.xlim([datetime(2002, 1, 1), datetime(2012, 12, 31)])
+plt.gca().xaxis.set_major_locator(mdates.YearLocator())             # Yearly thicks, diplayed in the beginning of each year
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y"))     # Display text of year 
+plt.gca().xaxis.set_minor_locator(mdates.MonthLocator())            # Monthly ticks 
+plt.gca().tick_params(which="minor", axis="x", length=5, width=0.5, color="gray")
+plt.ylim(0,20000)
+plt.xticks(rotation=45)
+plt.legend(fontsize=12)
+plt.grid()
+plt.tight_layout()
+dir = str(Path(__file__).resolve().parent/"Results/")
+plt.savefig(os.path.join(dir,"EstimatingSIV_EnvPeriod.png"), dpi=300, bbox_inches="tight")
+plt.show()
 
 
 
 # CREATE PLOT FOR THE SLOPE OF SIV IN EACH MONTHS 
-if True:
-    halo_dates, halo_values = read_file(halo_file)
-    type_dates, type_values = read_file(type_file)
-    nn_dates, nn_values = read_file(nn_file)
+halo_dates, halo_values = read_file(halo_file)
+type_dates, type_values = read_file(type_file)
+nn_dates, nn_values = read_file(nn_file)
 
-    halo_month = split_by_month(halo_dates, halo_values)
-    type_month = split_by_month(type_dates, type_values)
-    nn_month = split_by_month(nn_dates, nn_values)
+halo_month = split_by_month(halo_dates, halo_values)
+type_month = split_by_month(type_dates, type_values)
+nn_month = split_by_month(nn_dates, nn_values)
 
-    breakpoint()
+halo_slopes = calculate_slopes(halo_month)
+type_slopes = calculate_slopes(type_month)
+nn_slopes = calculate_slopes(nn_month)
 
-    
+plot_months(halo_month, save_name="Halo_monthly")
+plot_months(type_month, save_name="IceAge_monthly")
+plot_months(nn_month, save_name="NN_monthly")
 
-    breakpoint()
+df = pd.DataFrame({
+    "Month": ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"],
+    "Halo": list(halo_slopes.values()),
+    "Ice age": list(type_slopes.values()),
+    "Neural network": list(nn_slopes.values())
+})
 
-    halo_slopes = calculate_slopes(halo_month)
-    type_slopes = calculate_slopes(type_month)
-    nn_slopes = calculate_slopes(nn_month)
+halo_avg = df["Halo"].mean()
+type_avg = df["Ice age"].mean()
+nn_avg = df["Neural network"].mean()
+df.loc["Average"] = ["Average", halo_avg, type_avg, nn_avg]
 
-    plot_months(halo_month)
-    plot_months(type_month)
-    plot_months(nn_month)
+pivot_data = df.set_index("Month").transpose()
+pivot_data.index = ["Halo", "Ice age", "Neural\nnetwork"]
 
-    df = pd.DataFrame({
-        "Month": ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr"],
-        "Halo": list(halo_slopes.values()),
-        "Ice age": list(type_slopes.values()),
-        "Neural network": list(nn_slopes.values())
-    })
+fig, ax = plt.subplots(figsize=(7, 3))
+hm = sns.heatmap(pivot_data, annot=True, cmap="viridis", fmt=".1f", linewidths=0.5, linecolor="white", 
+            cbar=False, vmin=-300, vmax=-40, ax=ax)
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("top", size="7%", pad=0.4)
+cbar = plt.colorbar(hm.collections[0], cax=cax, orientation="horizontal")
+cax.xaxis.set_ticks_position("bottom")
+cax.xaxis.set_label_position("top")
+for spine in cax.spines.values():
+    spine.set_visible(False)
+cbar.set_label("Slope [km$^3$/year]")
 
-    halo_avg = df["Halo"].mean()
-    type_avg = df["Ice age"].mean()
-    nn_avg = df["Neural network"].mean()
-    df.loc["Average"] = ["Average", halo_avg, type_avg, nn_avg]
+ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
-    pivot_data = df.set_index("Month").transpose()
-
-    fig, ax = plt.subplots(figsize=(7, 3))
-    hm = sns.heatmap(pivot_data, annot=True, cmap="viridis", fmt=".1f", linewidths=0.5, linecolor="white", 
-                cbar=False, vmin=-300, vmax=-40, ax=ax) #cbar_kws={"label": "Slope [km$^3$/year]", "orientation": "horizontal", "pad": 0.2})
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("top", size="7%", pad=0.4)
-    cbar = plt.colorbar(hm.collections[0], cax=cax, orientation="horizontal")
-    cax.xaxis.set_ticks_position("bottom")
-    cax.xaxis.set_label_position("top")
-    for spine in cax.spines.values():
-        spine.set_visible(False)
-    cbar.set_label("Slope [km$^3$/year]")
-    
-    ax.set_ylabel("Method", fontsize=10)
-    ax.set_xlabel("")
-    plt.tight_layout()
-    output_dir = str(Path(__file__).resolve().parent/"Results/")
-    plt.savefig(os.path.join(output_dir, "Slope_Heatmap_EnvPeriod.png"), dpi=300, bbox_inches="tight")
-    plt.show()
+plt.tight_layout()
+output_dir = str(Path(__file__).resolve().parent/"Results/")
+plt.savefig(os.path.join(output_dir, "EnvPeriod_Slope_Heatmap.png"), dpi=300, bbox_inches="tight")
+plt.show()

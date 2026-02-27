@@ -8,7 +8,7 @@ Other:      Based on Robbie Mallet's ll_xy.py (https://github.com/robbiemallett/
             Modified by Thea Jonsson since 2025-08-20
 """
 
-from pyproj import Proj, Transformer
+from pyproj import Transformer
 import numpy as np
 
 

@@ -5,7 +5,7 @@ Purpose:    Create a heatmap with hidden layers and nodes, to be able to determi
 
 Function:   N/A
 
-Other:      Created by Thea Jonsson 2025-10-03
+Other:      Created by Thea Jonsson 2025-10-03 
 """
 
 from pathlib import Path
@@ -14,6 +14,8 @@ import seaborn as sns
 import re
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+
+
 
 nodes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 hidden_layers = [1, 2, 3, 4, 5]
@@ -108,6 +110,5 @@ axes[2].add_patch(rect)
 
 plt.tight_layout()
 fig.subplots_adjust(wspace=0.15, hspace=0.5)
-plt.savefig("/Users/theajonsson/Desktop/hidden_layers_vs_nodes.png", dpi=300, bbox_inches="tight")
 plt.savefig(str(Path(__file__).resolve().parent/"Results/HiddenLayers_vs_HiddenNodes/hidden_layers_vs_nodes.png"), dpi=300, bbox_inches="tight")
 plt.show()
