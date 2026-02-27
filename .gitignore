@@ -6,14 +6,12 @@ Halo/._*
 Halo/*.bin
 Halo/*.nc
 Halo/*.txt
-Halo/Results/*
 # Ignore Ice_Age
 Ice_Age/__pycache__
 Ice_Age/._*
 Ice_Age/*.bin
 Ice_Age/*.nc
 Ice_Age/*.txt
-Ice_Age/Results/*
 # Ignore Neural_Network
 Neural_Network/__pycache__
 Neural_Network/._*
@@ -22,7 +20,6 @@ Neural_Network/*.bin
 Neural_Network/*.txt
 Neural_Network/main.py
 Neural_Network/Read_NC_File.py
-Neural_Network/Results/*
+Neural_Network/Results/Training_Data/TD_2006_2007.csv
 # Ignore Estimating_SIV
 Estimating_SIV/SatelliteOrbit.py
-Estimating_SIV/Results/*
