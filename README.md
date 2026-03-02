@@ -99,7 +99,8 @@ The neural network method uses passive microwave *brightness temperature* (TB) m
 Functions for formating and processing data products, used in majority of the other Python files in this folder.
 
 ### 4.2 TrainingData.py
-Creates the training data, consists of TB and Envisat SIT products, used to train the NN model in NN.py.
+Creates the training data, consists of TB and Envisat SIT products, used to train the NN model in NN.py.    
+The training dataset is also available for download at [Google Drive](https://drive.google.com/drive/folders/1V1OSULpRQD4093nSDewmmbjPwg3eiZNk?usp=sharing).
 
 ### 4.3 NN.py
 Trains the NN using PyTorch, used to create the NN model. 
@@ -112,7 +113,8 @@ Optional: train NN automatically for 10 hidden nodes, each node is runned three 
 Optional: plot RMSE, bias, coefcient of determination (R^2) for different amount of hidden layers and nodes.
 
 #### 4.3.3 Inter_calibration_SSMI_SSMIS.py
-Optional: check the difference in predicted SIT between SSM/I and SSMIS.
+Optional: check the difference in predicted SIT between SSM/I and SSMIS.      
+The predicted SIT data using SSM/I or SSMIS are also available for download at [Google Drive](https://drive.google.com/drive/folders/1V1OSULpRQD4093nSDewmmbjPwg3eiZNk?usp=sharing).
 
 ### 4.4 NN_vs_CS2.py
 Calculates SIV inside the pole hole to validate against CS-2.  
